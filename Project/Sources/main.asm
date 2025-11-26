@@ -11,7 +11,7 @@
 ; - Bumper collision detection
 ; - State machine navigation
 ;*****************************************************************************
-
+; Test GITHUB COMMIT
            
 ; export symbols
             XDEF Entry, _Startup            ; export 'Entry' symbol
@@ -75,7 +75,7 @@ LINE_DEADBAND       EQU 5
 
 ; Timing
 SETTLE_DELAY    EQU 20               ; ms to wait for CdS settling
-COUNTS_90_DEG   EQU 26               ; Wheel counts for 90° turn
+COUNTS_90_DEG   EQU 26               ; Wheel counts for 90ï¿½ turn
 
 ; State Machine States
 STATE_INIT          EQU 0
@@ -118,7 +118,7 @@ THOUSANDS           ds.b 1          ; 1,000 digit
 HUNDREDS            ds.b 1          ; 100 digit
 TENS                ds.b 1          ; 10 digit
 UNITS               ds.b 1           ; 1 digit
-NO_BLANK            ds.b 1          ; Used in ’leading zero’ blanking by BCD2ASC
+NO_BLANK            ds.b 1          ; Used in ï¿½leading zeroï¿½ blanking by BCD2ASC
 BCD_SPARE           RMB 10          ; Extra space for decimal point and string terminator
 CURRENT_GUIDER_VALUE  DS.B 1
 
@@ -1342,57 +1342,57 @@ CON_EXIT    RTS
 BCD2ASC     LDAA  #0               ; Initialize the blanking flag
             STAA NO_BLANK
 
-C_TTHOU     LDAA TEN_THOUS         ;Check the ’ten_thousands’ digit
+C_TTHOU     LDAA TEN_THOUS         ;Check the ï¿½ten_thousandsï¿½ digit
             ORAA NO_BLANK
             BNE NOT_BLANK1
 
 ISBLANK1    LDAA #' '             ; It's blank
             STAA TEN_THOUS        ;so store a space
-            BRA  C_THOU           ;and check the ’thousands’ digit
+            BRA  C_THOU           ;and check the ï¿½thousandsï¿½ digit
 
-NOT_BLANK1  LDAA TEN_THOUS        ;Get the ’ten_thousands’ digit
+NOT_BLANK1  LDAA TEN_THOUS        ;Get the ï¿½ten_thousandsï¿½ digit
             ORAA #$30             ;Convert to ascii
             STAA TEN_THOUS
-            LDAA #$1              ;Signal that we have seen a ’non-blank’ digit
+            LDAA #$1              ;Signal that we have seen a ï¿½non-blankï¿½ digit
             STAA NO_BLANK
 
 C_THOU      LDAA THOUSANDS        ;Check the thousands digit for blankness
-            ORAA NO_BLANK         ;If it’s blank and ’no-blank’ is still zero
+            ORAA NO_BLANK         ;If itï¿½s blank and ï¿½no-blankï¿½ is still zero
             BNE  NOT_BLANK2
 
 ISBLANK2    LDAA  #' '             ; Thousands digit is blank
             STAA THOUSANDS         ;so store a space
             BRA  C_HUNS            ;and check the hundreds digit
 
-NOT_BLANK2  LDAA THOUSANDS         ;(similar to ’ten_thousands’ case)
+NOT_BLANK2  LDAA THOUSANDS         ;(similar to ï¿½ten_thousandsï¿½ case)
             ORAA #$30
             STAA THOUSANDS
             LDAA #$1
             STAA NO_BLANK
 
 C_HUNS      LDAA HUNDREDS           ;Check the hundreds digit for blankness
-            ORAA NO_BLANK           ;If it’s blank and ’no-blank’ is still zero
+            ORAA NO_BLANK           ;If itï¿½s blank and ï¿½no-blankï¿½ is still zero
             BNE NOT_BLANK3
 
 ISBLANK3    LDAA  #' '             ; Hundreds digit is blank
             STAA HUNDREDS          ;so store a space
             BRA C_TENS             ;and check the tens digit
 
-NOT_BLANK3  LDAA HUNDREDS          ;(similar to ’ten_thousands’ case)
+NOT_BLANK3  LDAA HUNDREDS          ;(similar to ï¿½ten_thousandsï¿½ case)
             ORAA #$30
             STAA HUNDREDS
             LDAA #$1
             STAA NO_BLANK
 
 C_TENS      LDAA TENS               ;Check the tens digit for blankness
-            ORAA NO_BLANK           ;If it’s blank and ’no-blank’ is still zero
+            ORAA NO_BLANK           ;If itï¿½s blank and ï¿½no-blankï¿½ is still zero
             BNE NOT_BLANK4  ;
 
 ISBLANK4    LDAA  #' '             ; Tens digit is blank
             STAA TENS              ;so store a space
             BRA C_UNITS            ;and check the units digit
 
-NOT_BLANK4  LDAA TENS              ;(similar to ’ten_thousands’ case)
+NOT_BLANK4  LDAA TENS              ;(similar to ï¿½ten_thousandsï¿½ case)
             ORAA #$30
             STAA TENS
 
