@@ -59,13 +59,13 @@ SLCT_C              EQU 4                ; Mid absolute, Middle Sensor
 SLCT_D              EQU 5                ; Starboard absolute, Starboard sensor
 
 ; Sensor Thresholds (CALIBRATE THESE!)
-DARK_THRESH      EQU $99              ; Above = dark line           
+EF_DARK          EQU $B4              ; Above = dark line           
+EF_LIGHT         EQU $60              ; Below = light surface
 BOW_THRESH       EQU $99              ; SENSOR A
 PORT_THRESH      EQU $99              ; SENSOR B
 MIDD_THRESH      EQU $99              ; SENSOR C
 STARBD_THRESH    EQU $99              ; SENSOR D
-LLINE_THRESH     EQU $60              ; SENSOR E
-RLINE_THRESH     EQU $B4              ; SENSOR F
+EF_THRESH        EQU $B4              ; SENSOR E & F
 
 ;line following tracking/ tuning
 LINE_CENTER         EQU $80
@@ -660,10 +660,10 @@ TP_D:
         ORAA #%00000100        ; bit 2 $04
         STAA sensor_pattern
 
-TP_E:
+TP_EF:
         ;----- E (bit1) -----
         LDAA 4,Y
-        CMPA #LLINE_THRESH
+        CMPA #EF_THRESH
         BLS TP_F
         LDAA sensor_pattern
         ORAA #%00000010        ; bit 1 , $02
