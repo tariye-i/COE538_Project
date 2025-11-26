@@ -187,7 +187,7 @@ BOW_SENSOR      DC.B  $0                        ; A, (FRONT) Initialized to test
 PORT_SENSOR     DC.B  $0                        ; B, (LEFT )
 MIDD_SENSOR     DC.B  $0                        ; C, (MIDDLE)
 STARBD_SENSOR   DC.B  $0                        ; D, (RIGHT)
-
+SENSOR_NUM      DC.B  1                        ; Sensor number for reading loop
 
 ;=============================================================================
 ; PROGRAM ENTRY POINT / CODE SECTION  
@@ -243,7 +243,7 @@ MainLoop:
     ; 1. Read all raw sensors
     ;==============================================================
     JSR   READ_ALL_SENSORS
-    JSR   THRESHOLD_PATTERN
+    JSR   SENSOR_CONVERT
 
     ;==============================================================
     ; 2. Update all detection & decision flags
@@ -571,99 +571,41 @@ UPDT_READING:
 ; Reads A,B,C,D,E,F individually into sensor_values[] , reads from left to right(543210)
 ;=============================================================================
 
-READ_ALL_SENSORS:
-        LDY  #sensor_values     ; Y ? start of sensor array
+READ_ALL_SENSORS        CLR SENSOR_NUM ; Select sensor number 0
+                        LDX #LINE_SENSOR ; Point at the start of the sensor array
+        RS_MAIN_LOOP:
+                        LDAA SENSOR_NUM ; Select the correct sensor input
+                        JSR SELECT_SENSOR ; on the hardware
+                        LDY #400 ; 20 ms delay to allow the
+                        JSR del_50us ; sensor to stabilize
+                        LDAA #%10000001 ; Start A/D conversion on AN1
+                        STAA ATDCTL5
+                        BRCLR ATDSTAT0,$80,* ; Repeat until A/D signals done
 
-        ;----- Read A -----
-        LDAA #SLCT_A
-        JSR  SELECT_AND_READ
-        STAA 0,Y               ; A
+                        LDAA ATDDR0L ; A/D conversion is complete in ATDDR0L
+                        STAA 0,X ; so copy it to the sensor register
+                        CPX #STARBD_SENSOR ; If this is the last reading
 
-        ;----- Read B -----
-        LDAA #SLCT_B
-        JSR  SELECT_AND_READ
-        STAA 1,Y               ; B
+                        BEQ RS_EXIT ; Then exit
+                        INC SENSOR_NUM ; Else, increment the sensor number
+                        INX ; and the pointer into the sensor array
+                        BRA RS_MAIN_LOOP ; and do it again
 
-        ;----- Read C -----
-        LDAA #SLCT_C
-        JSR  SELECT_AND_READ
-        STAA 2,Y               ; C
+           RS_EXIT:     RTS
 
-        ;----- Read D -----
-        LDAA #SLCT_D
-        JSR  SELECT_AND_READ
-        STAA 3,Y               ; D
-
-        ;----- Read E (left line) -----
-        LDAA #SLCT_LINE_LEFT
-        JSR  SELECT_AND_READ
-        STAA 4,Y               ; E
-
-        ;----- Read F (right line) -----
-        LDAA #SLCT_LINE_RIGHT
-        JSR  SELECT_AND_READ
-        STAA 5,Y               ; F
-
-        LDAA 0,Y
-        STAA BOW_SENSOR
-        LDAA 1,Y
-        STAA PORT_SENSOR
-        LDAA 2,Y
-        STAA MIDD_SENSOR
-        LDAA 3,Y
-        STAA STARBD_SENSOR
-        LDAA 4,Y
-        STAA LINE_SENSOR
-            
-        RTS
-
-SELECT_AND_READ:
-            ; Input: A = sensor select code (0-5)
-            ; Output: A = averaged sensor reading
-            
-            ; Save sensor code
-            PSHA
-            
-            ; Configure PORTA for this sensor
-            ; Preserve motor direction bits (PA0,PA1)
-            LDAA PORTA
-            ANDA #%11000011             ; Keep bits 7-6,1-0 , C3
-            STAA temp_a
-            
-            ; Get sensor code and shift to PA2-PA4
-            PULA
-            ASLA
-            ASLA
-            ANDA #%00011100             ; Isolate PA2-PA4,  1C
-            
-            ; Combine with preserved bits
-            ORAA temp_a
-            
-            ; Enable LED (PA5)
-            ORAA #%00100000       ; 20
-            STAA PORTA
-            
-            ; Wait for CdS settling (20ms)
-            LDY  #400                   ; 400 * 50us = 20ms
-            JSR  del_50us
-            
-            ; Start A/D conversion on AN1
-            MOVB #$81, ATDCTL5          ; Right justified, single, AN1
-            
-SAR_WAIT:
-            BRCLR ATDSTAT0, #$80, SAR_WAIT
-            
-            ; Average 4 samples
-            LDAA ATDDR0L
-            LDAB ATDDR1L
-            ABA            ; A = A + B
-            ADDA ATDDR2L
-            ADDA ATDDR3L
-            LSRA
-            LSRA                        ; Divide by 4
-            STAA CURRENT_GUIDER_VALUE    ; STORES AVERAGE VALUE / RESULT
-            
-            RTS
+SELECT_SENSOR           PSHA ; Save the sensor number for the moment
+                        
+                        LDAA PORTA ; Clear the sensor selection bits to zeros
+                        ANDA #%11100011 ;
+                        STAA TEMP ; and save it into TEMP
+                        PULA ; Get the sensor number
+                        ASLA ; Shift the selection number left, twice
+                        ASLA ;
+                        ANDA #%00011100 ; Clear irrelevant bit positions
+                        
+                        ORAA TEMP ; OR it into the sensor bit positions
+                        STAA PORTA ; Update the hardware
+                        RTS
 
 ;============================================================
 ; LEDS ON AND OFF
@@ -675,11 +617,11 @@ LED_OFF:    BCLR PORTA,%00100000
             RTS
             
 ;============================================================
-; THRESHOLD_PATTERN
+; SENSOR_CONVERT
 ; Converts sensor_values[] into ABCDEF pattern bits
 ;============================================================
 
-THRESHOLD_PATTERN:
+SENSOR_CONVERT:
         CLR sensor_pattern
         LDY #sensor_values
 
