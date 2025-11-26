@@ -11,6 +11,7 @@
 ; - Bumper collision detection
 ; - State machine navigation
 ;*****************************************************************************
+
            
 ; export symbols
             XDEF Entry, _Startup            ; export 'Entry' symbol
@@ -25,8 +26,6 @@
 
 ROMStart        EQU  $4000                      ; absolute address to place my code/constant data
 
-               
-
 LCD_DAT         EQU   PORTB                     ; LCD data port, bits - PB7,...,PB0
 LCD_CNTR        EQU   PTJ                       ; LCD control port, bits - PJ6(RS),PJ7(E)
 LCD_E           EQU   $80                       ; LCD E-signal pin
@@ -37,14 +36,13 @@ LCD_RS          EQU   $40                       ; LCD RS-signal pin
 ;=============================================================================
 
 ; Motor Control
-MOTOR_STOP      EQU 0
 MOTOR_MIN       EQU 70               ; Calibrate: minimum to overcome friction
 MOTOR_SLOW      EQU 102              ; $46
 MOTOR_MED       EQU 153              ; $99
 MOTOR_FAST      EQU 200              ; Calibrate: max safe speed , $C8
 MOTOR_MAX       EQU 255              ; $FF
 
-;WHEEL COUNTS (DISTANCE UNITS IN ENCODER COUNTS) ; take out
+;WHEEL COUNTS (DISTANCE UNITS IN ENCODER COUNTS)
 INCR_DIS         EQU   300                       ; INCREMENT distance
 FRWD_DIS         EQU   2000                      ; FORWARD distance
 REVR_DIS         EQU   1000                      ; REVERSE distance
@@ -52,7 +50,7 @@ STRT_DIS         EQU   1000                      ; STRAIGHT distance
 TURN_DIS         EQU   13000                     ; TURN distance
 UTURN_DIS        EQU   15000                     ; U-TURN distance
 
-; Sensor Selection (PA2-PA4 values) ; change
+; Sensor Selection (PA2-PA4 values)
 SLCT_LINE_LEFT      EQU 0                ; E differential, Line sensor
 SLCT_LINE_RIGHT     EQU 1                ; F differential, Line sensor
 SLCT_A              EQU 2                ; Bow absolute, Front sensor
@@ -60,36 +58,35 @@ SLCT_B              EQU 3                ; Port absolute, Port sensor
 SLCT_C              EQU 4                ; Mid absolute, Middle Sensor
 SLCT_D              EQU 5                ; Starboard absolute, Starboard sensor
 
-; Sensor Thresholds (CALIBRATE THESE!)  , 
-DARK_THRESHOLD      EQU $99              ; Above = dark line , 153  ,take out
-BOW_THRESHOLD       EQU $99              ; SENSOR A , 153
-PORT_THRESHOLD      EQU $99              ; SENSOR B , 153
-MIDD_THRESHOLD      EQU $99              ; SENSOR C , 153
-STARBD_THRESHOLD    EQU $99              ; SENSOR D , 153
-LLINE_THRESHOLD     EQU $60              ; SENSOR E  , 96
-RLINE_THRESHOLD     EQU $B4              ; SENSOR F , 180
+; Sensor Thresholds (CALIBRATE THESE!)
+EF_DARK          EQU $B4              ; Above = dark line           
+EF_LIGHT         EQU $60              ; Below = light surface
+BOW_THRESH       EQU $99              ; SENSOR A
+PORT_THRESH      EQU $99              ; SENSOR B
+MIDD_THRESH      EQU $99              ; SENSOR C
+STARBD_THRESH    EQU $99              ; SENSOR D
+EF_THRESH        EQU $B4              ; SENSOR E & F
 
-;line following tracking
-LINE_CENTER         EQU $80 ; 128
+;line following tracking/ tuning
+LINE_CENTER         EQU $80
 LINE_DEADBAND       EQU 5
 
 ; Timing
-SETTLE_DELAY    EQU 23               ; ms to wait for CdS settling
-COUNTS_90_DEG   EQU 23               ; Wheel counts for 90° turn
+SETTLE_DELAY    EQU 20               ; ms to wait for CdS settling
+COUNTS_90_DEG   EQU 26               ; Wheel counts for 90� turn
 
 ; State Machine States
-STATE_INIT          EQU 0 ; start 
-STATE_FOLLOWING     EQU 1    ;st_fllw
-STATE_AT_JUNCTION   EQU 2     ;st_junc
-STATE_TURNING       EQU 3      ;st_turn
-STATE_COLLISION     EQU 4     ;st_col
-STATE_REVERSING     EQU 5    ;st_rev
-STATE_COMPLETE      EQU 6     ;st_end
-STATE_RETRACING     EQU 7     ;st_bck
+START_STAT          EQU 0
+FLLW_STAT           EQU 1
+JUNCT_STAT          EQU 2        
+TURN_STAT           EQU 3
+COL_STAT            EQU 4
+REV_STAT            EQU 5
+DONE_STAT           EQU 6
+BCKTRK_STAT         EQU 7
 
 ; Maze Constants
 MAX_INTERSECTIONS   EQU 7
-NO_INTERSECTION     EQU $FF
 MODE_EXPLORING      EQU 0
 MODE_RETRACING      EQU 1
 
@@ -104,7 +101,7 @@ TURN_RIGHT          EQU 0
 TURN_STRAIGHT       EQU 1
 TURN_LEFT           EQU 2
 TURN_REVERSE        EQU 3
-NO_TURN             EQU $FF
+NO_TURN             EQU $FF    ;Means remain in same direction   Delete if not relevant Do not add to turn implementation
 
 ; PATH ORDER
 FIRST_PATH          EQU  0     ;at intersections and junctions
@@ -123,7 +120,7 @@ THOUSANDS           ds.b 1          ; 1,000 digit
 HUNDREDS            ds.b 1          ; 100 digit
 TENS                ds.b 1          ; 10 digit
 UNITS               ds.b 1           ; 1 digit
-NO_BLANK            ds.b 1          ; Used in ’leading zero’ blanking by BCD2ASC
+NO_BLANK            ds.b 1          ; Used in �leading zero� blanking by BCD2ASC
 BCD_SPARE           RMB 10          ; Extra space for decimal point and string terminator
 CURRENT_GUIDER_VALUE  DS.B 1
 
@@ -156,10 +153,10 @@ line_value          DS.B 1
 ;sensor_values[5] = F
 ;=============================================================================
 
-CNT1          DC.W  0                         ; initialize 2-byte CNT1 to $0000
-CNT2          DC.W  0                         ; initialize 2-byte CNT2 to $0000
+CNT1          DC.W  0                         ; initialize 2-byte COUNT1 to $0000
+CNT2          DC.W  0                         ; initialize 2-byte COUNT2 to $0000
 
-; Motor Control            , implement
+; Motor Control
 port_motor_speed    DS.B 1
 stbd_motor_speed    DS.B 1
 
@@ -173,7 +170,7 @@ temp_b              DS.B 1
 TEMP                DS.B 1            
 
 ;PATH DETECTION
-                               
+
 STRTLINE          DC.B  0                         ; Straight line pattern
 CRSJUNC           DC.B  0                         ; Cross junction pattern
 LTURN             DC.B  0                         ; Left turn pattern
@@ -183,8 +180,8 @@ LTJUNC            DC.B  0                         ; Left T-junction pattern
 RTJUNC            DC.B  0                         ; Right T-junction pattern
 ENDLINE           DC.B  0                         ; End of line pattern
 
-RETURN_PATH      DC.B  0                         ; RETURN (TRUE = 1, FALSE = 0)  , NOT USED, MAY REMOVE
-NEXT_DIR         DC.B  1                         ; Next direction instruction   , NOT USED, MAY REMOVE
+RETURN_PATH      DC.B  0                         ; RETURN (TRUE = 1, FALSE = 0)
+NEXT_DIR         DC.B  1                         ; Next direction instruction
 
 ;FOR PATTERN DETECTION
 LINE_SENSOR     DC.B  $0                        ; E-F, (LINE ) Storage for guider sensor readings
@@ -192,37 +189,32 @@ BOW_SENSOR      DC.B  $0                        ; A, (FRONT) Initialized to test
 PORT_SENSOR     DC.B  $0                        ; B, (LEFT )
 MIDD_SENSOR     DC.B  $0                        ; C, (MIDDLE)
 STARBD_SENSOR   DC.B  $0                        ; D, (RIGHT)
-
+SENSOR_NUM      DC.B  1                        ; Sensor number for reading loop
 
 ;=============================================================================
 ; PROGRAM ENTRY POINT / CODE SECTION  
 ;=============================================================================
 Entry:
 _Startup:
-            ORG $4000
-                                     ; Disable interrupts during init
+            SEI                         ; Disable interrupts during init
             LDS  #$4000                 ; Initialize stack pointer
 
             ; Initialize Hardware
             JSR  INIT_PORTS
-            
+            JSR  INIT_TCNT
             JSR   initAD                    ; Initialize ATD converter                  I                                                ;                                           A
-            
             JSR   initLCD                   ; Initialize the LCD                        L
             JSR   clrLCD                    ; Clear LCD & home cursor   
-           
-            JSR  INIT_TCNT
-           
             ; Initialize Variables
-                     
             JSR  INIT_MAZE_DATA
             
             ; Safety: Motors off
             JSR  STOP_MOTORS
                                                           ;                                           T
             ; Set initial state
-            LDAA #STATE_INIT
+            LDAA #START_STAT
             STAA robot_state
+            
             
             CLI                         ; Enable interrupts
             
@@ -248,19 +240,34 @@ _Startup:
 ; MAIN LOOP
 ;=============================================================================
 MainLoop:
- 
-                JSR   READ_ALL_SENSORS
-                JSR   UPDT_READING              ;                                           M
-                JSR   UPDT_DISP                ;                                           A
-                LDAA  robot_state
-                JSR   CHECK_BUMPERS                ;                                           I
-                JSR   DISPATCHER                ;                                           N
-                BRA   MainLoop   
 
+    ;==============================================================
+    ; 1. Read all raw sensors
+    ;==============================================================
+    JSR   READ_ALL_SENSORS
+    JSR   SENSOR_CONVERT
 
+    ;==============================================================
+    ; 2. Update all detection & decision flags
+    ;==============================================================
+    JSR   CHECK_BUMPERS          ; safety flags
+    JSR   DETECT_JUNCTION         ; junction_flag, approaching_flag
+    JSR   DECIDE_TURN_DIRECTION          ; next_turn_dir flag
+
+    ;==============================================================
+    ; 3. STATE MACHINE (decision + motor control)
+    ;==============================================================
+    JSR   DISPATCHER
+
+    ;==============================================================
+    ; 4. Display update timer
+    ;==============================================================
+    JSR   UPDT_READING
+    JSR   UPDT_DISP
+    BRA   MainLoop
 
 ;*******************************************************************
-; data section
+; data section, MAY RENAME LATER IF NEEDED
 ;*******************************************************************
 
 msg1        dc.b "Battery volt ",0
@@ -268,19 +275,14 @@ msg2        dc.b "State ",0
 msg3        dc.b "Sensor ",0
 msg4        dc.b "Bumper ",0
 
-tab         dc.b "STATE_INIT",0
-            dc.b "STATE_FOLLOWING",0
-            dc.b "STATE_AT_JUNCTION",0
-            dc.b "STATE_TURNING",0
-            dc.b "STATE_COLLISION",0
-            dc.b "STATE_REVERSING",0
-            dc.b "STATE_COMPLETE",0
-            dc.b "STATE_RETRACING",0
- 
- ;=============================================================================
-; CODE SECTION - LOOKUP TABLES and data structure
-;=============================================================================
-           
+tab         dc.b "START_STAT",0
+            dc.b "FLLW_STAT",0
+            dc.b "JUNCT_STAT",0
+            dc.b "TURN_STAT",0
+            dc.b "COL_STAT",0
+            dc.b "REV_STAT",0
+            dc.b "DONE_STAT",0
+            dc.b "BCKTRK_STAT",0
 
 ; Turn Result Table: [current_dir * 3 + turn_type] ? new_direction
 turn_result_table:
@@ -294,9 +296,70 @@ required_turn_table:
             DC.B NO_TURN, TURN_RIGHT, TURN_REVERSE, TURN_LEFT
             DC.B TURN_LEFT, NO_TURN, TURN_RIGHT, TURN_REVERSE
             DC.B TURN_REVERSE, TURN_LEFT, NO_TURN, TURN_RIGHT
-            DC.B TURN_RIGHT, TURN_REVERSE, TURN_LEFT, NO_TURN
+            DC.B TURN_RIGHT, TURN_REVERSE, TURN_LEFT, NO_TURN       
                                      
+;=============================================================================
+; INITIALIZATION ROUTINES
+;=============================================================================
+INIT_PORTS:
+         ;----------------------------------------
+         ; Configure PORTAD: analog inputs
+         ;----------------------------------------
+            BCLR  DDRAD, #$FF           ; All PORTAD pins as input
+            BSET  DDRA,  #$FF
+            BSET  DDRT,  $30       
 
+            RTS
+
+INIT_TCNT:
+            ; Enable timer system
+            MOVB #$80, TSCR1            ; TEN=1, TFFCA=1
+            
+            ; Prescaler and overflow interrupt
+            MOVB #$00, TSCR2            ; TOI=1, prescaler
+            
+            ; Configure IC0,IC1 for wheel counters
+            MOVB #$FC, TIOS             ; All input capture initially
+            MOVB #$05, TCTL4
+            MOVB #$03, TFLG1 
+            MOVB #$03, TIE              ; Enable IC0, IC1 interrupts
+            
+            RTS            
+
+INIT_MAZE_DATA:
+            ; Set starting direction (East)
+            LDAA #EAST
+            STAA current_direction
+            
+            ; Clear intersection counter
+            CLR  current_intersection
+            
+            ; Set exploring mode
+            LDAA #MODE_EXPLORING
+            STAA robot_mode
+            
+            ; Clear stack pointer
+            CLR  path_stack_ptr
+            
+            ; Initialize maze_solution to NO_INTERSECTION
+            LDX  #maze_solution
+            LDAA #MAX_INTERSECTIONS
+
+INIT_MAZE_LOOP:
+            STAB 1,X+
+            DECA
+            BNE  INIT_MAZE_LOOP
+            
+            ; Clear intersection_solved flags
+            LDX  #intersection_solved
+            LDAA #MAX_INTERSECTIONS
+
+INIT_SOLVED_LOOP:
+            CLR  1,X+
+            DECA
+            BNE  INIT_SOLVED_LOOP
+            
+            RTS
 
 ;********************************************************************************************
 ;* SUBROUTINES SECTION                                                                       *
@@ -316,14 +379,15 @@ STRBDOFF         BCLR  PTT,%00100000
 ;+------------------------------------------------------------------------------------------+
 ;| Starboard (Right) Motor FWD                                                              |
 ;+------------------------------------------------------------------------------------------+
-STRBDFWD         BCLR  PORTA,%00000010
+STRBDFWD        BCLR  PORTA,%00000010
                 RTS
 
 ;+------------------------------------------------------------------------------------------+
 ;| Starboard (Right) Motor REV                                                              |
 ;+------------------------------------------------------------------------------------------+
-STRBDREV         BSET  PORTA,%00000010
+STRBDREV        BSET  PORTA,%00000010
                 RTS
+;+------------------------------------------------------------------------------------------+
 
 ;+------------------------------------------------------------------------------------------+
 ;| Port (Left) Motor ON                                                                     |
@@ -348,26 +412,28 @@ PORTFWD         BCLR  PORTA,%00000001
 ;+------------------------------------------------------------------------------------------+
 PORTREV         BSET  PORTA,%00000001
                 RTS
+;+------------------------------------------------------------------------------------------+
+
 ;********************************************************************************************
-;* NEW STATES DISPATCHER / STATE MACHINE                                                                   *     
+;* NEW STATES DISPATCHER / STATE MACHINE                                                                        
 ;*******************************************************************
 DISPATCHER:
             LDAA robot_state
             
-            CMPA #STATE_INIT
-            BEQ  STATE_INIT_HANDLER
+            CMPA #START_STAT
+            BEQ  START_STAT_INIT
             
-            CMPA #STATE_FOLLOWING
-            BEQ  STATE_FOLLOWING_HANDLER
+            CMPA #FLLW_STAT
+            BEQ  FLLW_STAT_INIT
             
-            CMPA #STATE_AT_JUNCTION
-            BEQ  STATE_JUNCTION_HANDLER
+            CMPA #JUNCT_STAT
+            BEQ  JUNCT_STAT_INIT
             
-            CMPA #STATE_COLLISION
-            BEQ  STATE_COLLISION_HANDLER
+            CMPA #COL_STAT
+            BEQ  COL_STAT_INIT
             
-            CMPA #STATE_COMPLETE
-            BEQ  STATE_COMPLETE_HANDLER
+            CMPA #DONE_STAT
+            BEQ  DONE_STAT_INIT
             
             ; Default: unknown state - stop motors for safety
             JSR  STOP_MOTORS
@@ -376,24 +442,26 @@ DISPATCHER:
 ;-----------------------------------------------------------------------------
 ; STATE: INIT - Wait for start
 ;-----------------------------------------------------------------------------
-STATE_INIT_HANDLER:
+START_STAT_INIT:
             ; Option 1: Auto-start
-            ;LDAA #STATE_FOLLOWING
+            ;LDAA #FLLW_STAT
             ;STAA robot_state
             ;RTS
             
             ; Option 2: Wait for bumper press (uncomment if desired)
-             BRCLR PORTAD0,#$04,START_PRESSED
+             BRCLR PORTAD0, #$04, START_PRESSED
+             
              RTS
-             START_PRESSED:
-                 LDAA #STATE_FOLLOWING
-                STAA robot_state
+
+START_PRESSED:
+                 LDAA #FLLW_STAT
+                 STAA robot_state
                  RTS
 
 ;-----------------------------------------------------------------------------
 ; STATE: FOLLOWING - Line tracking and intersection detection
 ;-----------------------------------------------------------------------------
-STATE_FOLLOWING_HANDLER:
+FLLW_STAT_INIT:
             ; Check for junction
             JSR  DETECT_JUNCTION
             TST  temp_a                     ; Result flag in temp_a
@@ -404,14 +472,14 @@ STATE_FOLLOWING_HANDLER:
             RTS
 
 FOUND_JUNCTION:
-            LDAA #STATE_AT_JUNCTION
+            LDAA #JUNCT_STAT
             STAA robot_state
             RTS
 
 ;-----------------------------------------------------------------------------
 ; STATE: AT_JUNCTION - Decision point
 ;-----------------------------------------------------------------------------
-STATE_JUNCTION_HANDLER:
+JUNCT_STAT_INIT:
             ; Decide which way to turn based on mode
             JSR  DECIDE_TURN_DIRECTION
             
@@ -420,14 +488,14 @@ STATE_JUNCTION_HANDLER:
             ; 2. If exploring: choose direction, push to stack
             ; 3. If retracing: read from solution array
             ; 4. Execute turn
-            ; 5. Transition back to STATE_FOLLOWING
+            ; 5. Transition back to FLLW_STAT
             
             RTS
 
 ;-----------------------------------------------------------------------------
 ; STATE: COLLISION - Hit dead end
 ;-----------------------------------------------------------------------------
-STATE_COLLISION_HANDLER:
+COL_STAT_INIT:
             ; Execute 180-degree turn
             JSR  TURN_180
             
@@ -439,35 +507,32 @@ STATE_COLLISION_HANDLER:
             JSR  RECORD_CORRECTION
             
             ; Resume following line back
-            LDAA #STATE_FOLLOWING
+            LDAA #FLLW_STAT
             STAA robot_state
             RTS
 
-STATE_REVERSING_HANDLER:
+REV_STAT_INIT:
             RTS
 
-STATE_LEAVING_HANDLER:
-            RTS
-
-STATE_TURNING_HANDLER:
+TURN_STAT_INIT:
             RTS
 ;-----------------------------------------------------------------------------
 ; STATE: COMPLETE - Reached destination
 ;-----------------------------------------------------------------------------
-STATE_COMPLETE_HANDLER:
+DONE_STAT_INIT:
             ; Keep motors stopped
             JSR  STOP_MOTORS
             
             ; Check current mode
             LDAA robot_mode
             CMPA #MODE_EXPLORING
-            BEQ  STATE_RETRACING_HANDLER
+            BEQ  BCKTRK_STAT_INIT
             
             ; Already retraced - mission complete!
             ; Stay in COMPLETE state, do nothing
             RTS
 
-STATE_RETRACING_HANDLER:
+BCKTRK_STAT_INIT:
              
              ; Check if rear bumper is pressed
             BRCLR PORTAD0, #$08, WAIT_FOR_REAR_BUMP  ; rear bumper assumed on bit 3
@@ -481,13 +546,25 @@ STATE_RETRACING_HANDLER:
             
             ; Optional: Wait for bumper press to start return
             ; Or auto-start after delay , IMPLEMENT TO WAIT FOR REAR BUMPER TO BE PRESSED
-            LDAA #STATE_FOLLOWING
+            LDAA #FLLW_STAT
             STAA robot_state
             RTS
             
 
 WAIT_FOR_REAR_BUMP:
-        ; Just return here; STATE_RETRACING will be called again next cycle
+        ; Just return here; BCKTRK will be called again next cycle
+        RTS
+
+
+; ===============================================================
+; Update Reading
+; ===============================================================
+
+UPDT_READING:
+        JSR LED_ON    
+        JSR READ_ALL_SENSORS
+        JSR LED_OFF
+        JSR UPDATE_DECT_FLAGS
         RTS
 
 ;============================================================
@@ -496,101 +573,49 @@ WAIT_FOR_REAR_BUMP:
 ; Reads A,B,C,D,E,F individually into sensor_values[] , reads from left to right(543210)
 ;=============================================================================
 
-READ_ALL_SENSORS:
-        LDY  #sensor_values     ; Y ? start of sensor array
+READ_ALL_SENSORS        CLR SENSOR_NUM ; Select sensor number 0
+                        LDX #LINE_SENSOR ; Point at the start of the sensor array
+        RS_MAIN_LOOP:
+                        LDAA SENSOR_NUM ; Select the correct sensor input
+                        JSR SELECT_SENSOR ; on the hardware
+                        LDY #400 ; 20 ms delay to allow the
+                        JSR del_50us ; sensor to stabilize
+                        LDAA #%10000001 ; Start A/D conversion on AN1
+                        STAA ATDCTL5
+                        BRCLR ATDSTAT0,$80,* ; Repeat until A/D signals done
 
-        ;----- Read A -----
-        LDAA #SLCT_A
-        JSR  SELECT_AND_READ
-        STAA 0,Y               ; A
+                        LDAA ATDDR0L ; A/D conversion is complete in ATDDR0L
+                        STAA 0,X ; so copy it to the sensor register
+                        CPX #STARBD_SENSOR ; If this is the last reading
 
-        ;----- Read B -----
-        LDAA #SLCT_B
-        JSR  SELECT_AND_READ
-        STAA 1,Y               ; B
+                        BEQ RS_EXIT ; Then exit
+                        INC SENSOR_NUM ; Else, increment the sensor number
+                        INX ; and the pointer into the sensor array
+                        BRA RS_MAIN_LOOP ; and do it again
 
-        ;----- Read C -----
-        LDAA #SLCT_C
-        JSR  SELECT_AND_READ
-        STAA 2,Y               ; C
+           RS_EXIT:     RTS
 
-        ;----- Read D -----
-        LDAA #SLCT_D
-        JSR  SELECT_AND_READ
-        STAA 3,Y               ; D
+SELECT_SENSOR           PSHA ; Save the sensor number for the moment
+                        
+                        LDAA PORTA ; Clear the sensor selection bits to zeros
+                        ANDA #%11100011 ;
+                        STAA TEMP ; and save it into TEMP
+                        PULA ; Get the sensor number
+                        ASLA ; Shift the selection number left, twice
+                        ASLA ;
+                        ANDA #%00011100 ; Clear irrelevant bit positions
+                        
+                        ORAA TEMP ; OR it into the sensor bit positions
+                        STAA PORTA ; Update the hardware
+                        RTS
 
-        ;----- Read E (left line) -----
-        LDAA #SLCT_LINE_LEFT
-        JSR  SELECT_AND_READ
-        STAA 4,Y               ; E
+;============================================================
+; LEDS ON AND OFF
+;============================================================
+LED_ON:     BSET PORTA,%00100000
+            RTS
 
-        ;----- Read F (right line) -----
-        LDAA #SLCT_LINE_RIGHT
-        JSR  SELECT_AND_READ
-        STAA 5,Y               ; F
-
-        LDAA 0,Y
-        STAA BOW_SENSOR
-        LDAA 1,Y
-        STAA PORT_SENSOR
-        LDAA 2,Y
-        STAA MIDD_SENSOR
-        LDAA 3,Y
-        STAA STARBD_SENSOR
-        LDAA 4,Y
-        STAA LINE_SENSOR
-
-      ; Disable LEDs
-        BCLR PORTA, #$20
-            
-        RTS
-
-SELECT_AND_READ:
-            ; Input: A = sensor select code (0-5)
-            ; Output: A = averaged sensor reading
-            
-            ; Save sensor code
-            PSHA
-            
-            ; Configure PORTA for this sensor
-            ; Preserve motor direction bits (PA0,PA1)
-            LDAA PORTA
-            ANDA #%11000011             ; Keep bits 7-6,1-0 , C3
-            STAA temp_a
-            
-            ; Get sensor code and shift to PA2-PA4
-            PULA
-            ASLA
-            ASLA
-            ANDA #%00011100             ; Isolate PA2-PA4,  1C
-            
-            ; Combine with preserved bits
-            ORAA temp_a
-            
-            ; Enable LED (PA5)
-            ORAA #%00100000       ; 20
-            STAA PORTA
-            
-            ; Wait for CdS settling (20ms)
-            LDY  #400                   ; 400 * 50us = 20ms
-            JSR  del_50us
-            
-            ; Start A/D conversion on AN1
-            MOVB #$81, ATDCTL5          ; Right justified, single, AN1
-            
-SAR_WAIT:
-            BRCLR ATDSTAT0, #$80, SAR_WAIT
-            
-            ; Average 4 samples
-            LDAA ATDDR0L
-            LDAB ATDDR1L
-            ABA            ; A = A + B
-            ADDA ATDDR2L
-            ADDA ATDDR3L
-            LSRA
-            LSRA                        ; Divide by 4
-            STAA CURRENT_GUIDER_VALUE    ; STORES AVERAGE VALUE / RESULT
-            
+LED_OFF:    BCLR PORTA,%00100000
             RTS
             
 ;============================================================
@@ -604,7 +629,7 @@ SENSOR_CONVERT:
 
         ;----- A (bit5) -----
         LDAA 0,Y
-        CMPA #BOW_THRESHOLD
+        CMPA #BOW_THRESH
         BLS TP_B                ; BRANCH IF LOWER OR THE SAME
         LDAA sensor_pattern
         ORAA #%00100000        ; bit 5
@@ -613,7 +638,7 @@ SENSOR_CONVERT:
 TP_B:
         ;----- B (bit4) -----
         LDAA 1,Y
-        CMPA #PORT_THRESHOLD
+        CMPA #PORT_THRESH
         BLS TP_C
         LDAA sensor_pattern
         ORAA #%00010000        ; bit 4, $10
@@ -622,7 +647,7 @@ TP_B:
 TP_C:
         ;----- C (bit3) -----
         LDAA 2,Y
-        CMPA #MIDD_THRESHOLD
+        CMPA #MIDD_THRESH
         BLS TP_D
         LDAA sensor_pattern
         ORAA #%00001000        ; bit 3 , $08
@@ -631,16 +656,16 @@ TP_C:
 TP_D:
         ;----- D (bit2) -----
         LDAA 3,Y
-        CMPA #STARBD_THRESHOLD
+        CMPA #STARBD_THRESH
         BLS TP_E
         LDAA sensor_pattern
         ORAA #%00000100        ; bit 2 $04
         STAA sensor_pattern
 
-TP_E:
+TP_EF:
         ;----- E (bit1) -----
         LDAA 4,Y
-        CMPA #LLINE_THRESHOLD
+        CMPA #EF_THRESH
         BLS TP_F
         LDAA sensor_pattern
         ORAA #%00000010        ; bit 1 , $02
@@ -649,7 +674,7 @@ TP_E:
 TP_F:
         ;----- F (bit0) -----
         LDAA 5,Y
-        CMPA #RLINE_THRESHOLD
+        CMPA #RLINE_THRESH
         BLS TP_DONE
         LDAA sensor_pattern
         ORAA #%00000001        ; bit 0 , $01
@@ -720,16 +745,6 @@ THRESHOLD_PATTERN:
 
         RTS
 
-
-; ===============================================================
-; Missing user-defined symbols added here
-; ===============================================================
-
-UPDT_READING:
-        JSR READ_ALL_SENSORS
-        JSR UPDATE_DECT_FLAGS
-        RTS
-
 ;=============================================================================
 ; BUMPER DETECTION - DIGITAL INPUT METHOD
 ; Checks PORTAD0 bits as configured digital inputs:
@@ -751,16 +766,16 @@ CHECK_BUMPERS:
 ; Bow bumper pressed ? collision/dead end
 ;-----------------------------------------------------------
 BOW_HIT:
-            LDAA #STATE_COLLISION
+            LDAA #COL_STAT
             STAA robot_state
-            JSR  STOP_MOTORS     ; reverse 180 and go back to intersection
+            JSR  STOP_MOTORS
             RTS
 
 ;-----------------------------------------------------------
 ; Stern bumper pressed ? reached destination
 ;-----------------------------------------------------------
 STERN_HIT:
-            LDAA #STATE_COMPLETE
+            LDAA #DONE_STAT
             STAA robot_state
             JSR  STOP_MOTORS
             
@@ -796,7 +811,7 @@ DJ_NOT_JUNCTION:
             RTS
 
 ;=============================================================================
-; LINE FOLLOWING CONTROL    / modify line control
+; LINE FOLLOWING CONTROL
 ;=============================================================================
 LINE_FOLLOW_CONTROL:
             ; Proportional steering based on line_value
@@ -866,6 +881,7 @@ DECIDE_TURN_DIRECTION:
             CMPB #1
             BEQ  DTD_USE_SOLUTION
             
+            
             ; Not solved - explore
             ; Simple strategy: try left first
             LDAA #TURN_LEFT
@@ -887,7 +903,7 @@ DECIDE_TURN_DIRECTION:
             INC  current_intersection
             
             ; Return to following
-            LDAA #STATE_FOLLOWING
+            LDAA #FLLW_STAT
             STAA robot_state
             RTS
 
@@ -910,25 +926,25 @@ DTD_USE_SOLUTION:
             BEQ  DTD_DO_180
             
             ; Otherwise straight - continue following
-            LDAA #STATE_FOLLOWING
+            LDAA #FLLW_STAT
             STAA robot_state
             RTS
 
 DTD_DO_LEFT:
             JSR  PIVOT_LEFT_90
-            LDAA #STATE_FOLLOWING
+            LDAA #FLLW_STAT
             STAA robot_state
             RTS
 
 DTD_DO_RIGHT:
             JSR  PIVOT_RIGHT_90
-            LDAA #STATE_FOLLOWING
+            LDAA #FLLW_STAT
             STAA robot_state
             RTS
 
 DTD_DO_180:
             JSR  TURN_180
-            LDAA #STATE_FOLLOWING
+            LDAA #FLLW_STAT
             STAA robot_state
             RTS
 
@@ -975,7 +991,7 @@ STOP_MOTORS:
 ;=============================================================================
 
 PIVOT_LEFT_90:
-            ; Port REV, Stbd FWD
+            ; Port REV, StRbd FWD
             BSET PORTA, #$01            ; PA0=1 (Port REV)
             BCLR PORTA, #$02            ; PA1=0 (Stbd FWD)
             
@@ -1010,9 +1026,10 @@ PL90_SET_WEST:
 
 PIVOT_RIGHT_90:
             ; Port FWD, Stbd REV
-            BCLR PORTA, #$01
+            BCLR PORTA, #%00000001
             BSET PORTA, #$02
             
+
             LDAA #MOTOR_MED
             LDAB #MOTOR_MED
             JSR  SET_MOTOR_SPEEDS
@@ -1124,70 +1141,20 @@ GET_REQUIRED_TURN:
             LDAA B,X
             RTS
 
-;=============================================================================
-; INITIALIZATION ROUTINES
-;=============================================================================
-INIT_PORTS:
-            ;----------------------------------------
-            ; Configure PORTAD: analog inputs
-            ;----------------------------------------
-            BCLR  DDRAD, #$FF           ; All PORTAD pins as input
-            BSET  DDRA,  #$FF
-            BSET  DDRT, $30     
-                 
-                 
-            RTS
-
-INIT_TCNT:
-            ; Enable timer system
-            MOVB #$80, TSCR1            ; TEN=1, TFFCA=1
-            
-            ; Prescaler and overflow interrupt
-            MOVB #$00, TSCR2            ; TOI=1, prescaler
-            
-            ; Configure IC0,IC1 for wheel counters
-            MOVB #$FC, TIOS             ; All input capture initially
-            MOVB #$03, TCTL4
-            MOVB #$03, TFLG1 
-            MOVB #$03, TIE              ; Enable IC0, IC1 interrupts
-            
-            RTS            
-
-INIT_MAZE_DATA:
-            ; Set starting direction (East)
-            LDAA #EAST
-            STAA current_direction
-            
-            ; Clear intersection counter
-            CLR  current_intersection
-            
-            ; Set exploring mode
-            LDAA #MODE_EXPLORING
-            STAA robot_mode
-            
-            ; Clear stack pointer
-            CLR  path_stack_ptr
-            
-            ; Initialize maze_solution to NO_INTERSECTION
-            LDX  #maze_solution
-            LDAA #MAX_INTERSECTIONS
-            LDAB #NO_INTERSECTION
-
-INIT_MAZE_LOOP:
-            STAB 1,X+
-            DECA
-            BNE  INIT_MAZE_LOOP
-            
-            ; Clear intersection_solved flags
-            LDX  #intersection_solved
-            LDAA #MAX_INTERSECTIONS
-
-INIT_SOLVED_LOOP:
-            CLR  1,X+
-            DECA
-            BNE  INIT_SOLVED_LOOP
-            
-            RTS
+;********************************************************************************************
+;* INTERRUPT SERVICE ROUTINE 1  /  Port wheel counter                                                            *
+;********************************************************************************************
+IC0_ISR:           
+                MOVB  #$01,TFLG1                ; clear the C0F input capture flag
+                INC   CNT1                    ; increment COUNT1
+                RTI
+;********************************************************************************************
+;* INTERRUPT SERVICE ROUTINE 2   / Starboard wheel counter                                                           *
+;********************************************************************************************
+IC1_ISR:          
+                MOVB  #$02,TFLG1                ; clear the C1F input capture flag
+                INC   CNT2                    ; increment COUNT2 
+                RTI
 
 ; utility subroutines  , FROM GOTTEN FRO PREVIOUS LABS
 ;*******************************************************************
@@ -1344,57 +1311,57 @@ CON_EXIT    RTS
 BCD2ASC     LDAA  #0               ; Initialize the blanking flag
             STAA NO_BLANK
 
-C_TTHOU     LDAA TEN_THOUS         ;Check the ’ten_thousands’ digit
+C_TTHOU     LDAA TEN_THOUS         ;Check the �ten_thousands� digit
             ORAA NO_BLANK
             BNE NOT_BLANK1
 
 ISBLANK1    LDAA #' '             ; It's blank
             STAA TEN_THOUS        ;so store a space
-            BRA  C_THOU           ;and check the ’thousands’ digit
+            BRA  C_THOU           ;and check the �thousands� digit
 
-NOT_BLANK1  LDAA TEN_THOUS        ;Get the ’ten_thousands’ digit
+NOT_BLANK1  LDAA TEN_THOUS        ;Get the �ten_thousands� digit
             ORAA #$30             ;Convert to ascii
             STAA TEN_THOUS
-            LDAA #$1              ;Signal that we have seen a ’non-blank’ digit
+            LDAA #$1              ;Signal that we have seen a �non-blank� digit
             STAA NO_BLANK
 
 C_THOU      LDAA THOUSANDS        ;Check the thousands digit for blankness
-            ORAA NO_BLANK         ;If it’s blank and ’no-blank’ is still zero
+            ORAA NO_BLANK         ;If it�s blank and �no-blank� is still zero
             BNE  NOT_BLANK2
 
 ISBLANK2    LDAA  #' '             ; Thousands digit is blank
             STAA THOUSANDS         ;so store a space
             BRA  C_HUNS            ;and check the hundreds digit
 
-NOT_BLANK2  LDAA THOUSANDS         ;(similar to ’ten_thousands’ case)
+NOT_BLANK2  LDAA THOUSANDS         ;(similar to �ten_thousands� case)
             ORAA #$30
             STAA THOUSANDS
             LDAA #$1
             STAA NO_BLANK
 
 C_HUNS      LDAA HUNDREDS           ;Check the hundreds digit for blankness
-            ORAA NO_BLANK           ;If it’s blank and ’no-blank’ is still zero
+            ORAA NO_BLANK           ;If it�s blank and �no-blank� is still zero
             BNE NOT_BLANK3
 
 ISBLANK3    LDAA  #' '             ; Hundreds digit is blank
             STAA HUNDREDS          ;so store a space
             BRA C_TENS             ;and check the tens digit
 
-NOT_BLANK3  LDAA HUNDREDS          ;(similar to ’ten_thousands’ case)
+NOT_BLANK3  LDAA HUNDREDS          ;(similar to �ten_thousands� case)
             ORAA #$30
             STAA HUNDREDS
             LDAA #$1
             STAA NO_BLANK
 
 C_TENS      LDAA TENS               ;Check the tens digit for blankness
-            ORAA NO_BLANK           ;If it’s blank and ’no-blank’ is still zero
+            ORAA NO_BLANK           ;If it�s blank and �no-blank� is still zero
             BNE NOT_BLANK4  ;
 
 ISBLANK4    LDAA  #' '             ; Tens digit is blank
             STAA TENS              ;so store a space
             BRA C_UNITS            ;and check the units digit
 
-NOT_BLANK4  LDAA TENS              ;(similar to ’ten_thousands’ case)
+NOT_BLANK4  LDAA TENS              ;(similar to �ten_thousands� case)
             ORAA #$30
             STAA TENS
 
@@ -1445,7 +1412,8 @@ BIN2ASC         PSHA                            ; Save a copy of the input numbe
 ;* Update Display (Battery Voltage + Current State) *
 ;*******************************************************************
 
-UPDT_DISP      LDAA  #$82                      ; Move LCD cursor to the end of msg1
+UPDT_DISP     
+                LDAA  #$82                      ; Move LCD cursor to the end of msg1
                 JSR   cmd2LCD                   ;
                 
                 LDAB  robot_state                ; Display current state
@@ -1463,7 +1431,6 @@ UPDT_DISP      LDAA  #$82                      ; Move LCD cursor to the end of m
                 JSR   putcLCD                   ; ""
                 EXG   A,B                       ; ""
                 JSR   putcLCD                   ; ""
-
                 LDAA  #$92                      ; Move LCD cursor to Line position 
                 JSR   cmd2LCD                   ; ""
                 LDAA  LINE_SENSOR               ; Convert value from SENSOR_BOW to a
@@ -1501,7 +1468,7 @@ UPDT_DISP      LDAA  #$82                      ; Move LCD cursor to the end of m
                 LDAA  ATDDR0L                   ; Load the ch0 result - battery volt - into A
                 LDAB  #39                       ; AccB = 39
                 MUL                             ; AccD = 1st result x 39
-                ADDD  #600                      ; AccD = 1st result x 39 + 600
+                ADDD #600                      ; AccD = 1st result x 39 + 600
                 JSR   int2BCD
                 JSR   BCD2ASC
                 LDAA  #$C2                      ; move LCD cursor to the end of msg3
@@ -1521,38 +1488,29 @@ UPDT_DISP      LDAA  #$82                      ; Move LCD cursor to the end of m
                 BRCLR PORTAD0,#%00000100,bowON  ; If FWD_BUMP, then
                 LDAA  #$20                      ;
                 JSR   putcLCD                   ;
-                BRA   stern_bump                ; Display 'B' on LCD
+                BRA   stern_bump                ; Display 'B' on LCD, 42 IS B IN ASCII CODE
+         
          bowON: LDAA  #$42                      ; ""
                 JSR   putcLCD                   ; ""
           
-    stern_bump: BRCLR PORTAD0,#%00001000,sternON; If REV_BUMP, then
+        stern_bump: BRCLR PORTAD0,#%00001000,sternON    ; If REV_BUMP, then
                 LDAA  #$20                      ;
                 JSR   putcLCD                   ;
-                BRA   UPDT_DISPL_EXIT           ; Display 'S' on LCD
-       sternON: LDAA  #$53                      ; ""
+                BRA   UPDT_DISPL_EXIT           ; Display 'S' on LCD, 53 IS S IN ASCII CODE
+        
+        sternON: LDAA  #$53                     ; ""
                 JSR   putcLCD                   ; ""
-UPDT_DISP_EXIT RTS  
 
-;********************************************************************************************
-;* INTERRUPT SERVICE ROUTINE 1  /  Port wheel counter                                                            *
-;********************************************************************************************
-IC0_ISR:           
-                MOVB  #$01,TFLG1                ; clear the C0F input capture flag
-                INC   CNT1                    ; increment COUNT1
-                RTI
-;********************************************************************************************
-;* INTERRUPT SERVICE ROUTINE 2   / Starboard wheel counter                                                           *
-;********************************************************************************************
-IC1_ISR:          
-                MOVB  #$02,TFLG1                ; clear the C1F input capture flag
-                INC   CNT2                    ; increment COUNT2 
-                RTI
+UPDT_DISP_EXIT RTS                             ; and exit                
 
 ;=============================================================================
 ; INTERRUPT VECTORS
 ;=============================================================================
             ORG  $FFFE
             DC.W Entry                  ; Reset
+            
+            ORG  $FFDE
+            DC.W TOF_ISR                ; Timer Overflow
             
             ORG  $FFEC
             DC.W IC0_ISR                ; Input Capture 0
