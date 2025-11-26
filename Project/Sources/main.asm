@@ -11,7 +11,6 @@
 ; - Bumper collision detection
 ; - State machine navigation
 ;*****************************************************************************
-
            
 ; export symbols
             XDEF Entry, _Startup            ; export 'Entry' symbol
@@ -175,12 +174,14 @@ TEMP                DS.B 1
 
 ;PATH DETECTION
                                
-A_DETCT          DC.B  0                         ; SENSOR A detection (PATH = 1, NO PATH = 0)
-B_DETCT          DC.B  0                         ; SENSOR B detection (PATH = 1, NO PATH = 0)
-C_DETCT          DC.B  0                         ; SENSOR C detection (PATH = 1, NO PATH = 0)
-D_DETCT          DC.B  0                         ; SENSOR D detection (PATH = 1, NO PATH = 0)
-E_DETCT          DC.B  0                         ; SENSOR E detection (PATH = 1, NO PATH = 0)
-F_DETCT          DC.B  0                         ; SENSOR F detection (PATH = 1, NO PATH = 0)
+STRTLINE          DC.B  0                         ; Straight line pattern
+CRSJUNC           DC.B  0                         ; Cross junction pattern
+LTURN             DC.B  0                         ; Left turn pattern
+RTURN             DC.B  0                         ; Right turn pattern
+TJUNC             DC.B  0                         ; T-junction pattern
+LTJUNC            DC.B  0                         ; Left T-junction pattern
+RTJUNC            DC.B  0                         ; Right T-junction pattern
+ENDLINE           DC.B  0                         ; End of line pattern
 
 RETURN_PATH      DC.B  0                         ; RETURN (TRUE = 1, FALSE = 0)  , NOT USED, MAY REMOVE
 NEXT_DIR         DC.B  1                         ; Next direction instruction   , NOT USED, MAY REMOVE
@@ -593,11 +594,11 @@ SAR_WAIT:
             RTS
             
 ;============================================================
-; THRESHOLD_PATTERN
+; SENSOR CONVERSION
 ; Converts sensor_values[] into ABCDEF pattern bits
 ;============================================================
 
-THRESHOLD_PATTERN:
+SENSOR_CONVERT:
         CLR sensor_pattern
         LDY #sensor_values
 
@@ -657,77 +658,68 @@ TP_F:
 TP_DONE:
             RTS
 
-; DETECT FLAGS FOR EACH SENSOR
-UPDATE_DECT_FLAGS:
-        LDY #sensor_values
-        LDAA 0,Y
-        CMPA #BOW_THRESHOLD
-        BLS UDF_A_CLR
-        
-        LDAA #1
-        STAA A_DETCT
-        BRA UDF_B
+;============================================================
+; THRESHOLD_PATTERN
+; Stores patterns to Names for detection
+;============================================================
+THRESHOLD_PATTERN:
 
-UDF_A_CLR:
-        CLR A_DETCT
+        ; Cross Junction pattern
+        LDAA sensor_pattern
+        ANDA #%00111100     ; bit 5,4,3,2 -> A,B,C,D
+        CMPA #%00111100
+        BEQ  CRSJUNC           
 
-UDF_B:
-        LDAA 1,Y
-        CMPA #PORT_THRESHOLD
-        BLS UDF_B_CLR
-        LDAA #1
-        STAA B_DETCT
-        BRA UDF_C
 
-UDF_B_CLR: 
-        CLR B_DETCT
+        ; Left T-junction pattern
+        LDAA sensor_pattern
+        ANDA #%00111000     ; bit 5,4,3 -> A,B,C
+        CMPA #%00111000
+        BEQ  LTJUNC            
 
-UDF_C:
-        LDAA 2,Y
-        CMPA #MIDD_THRESHOLD
-        BLS UDF_C_CLR
-        LDAA #1
-        STAA C_DETCT
-        BRA UDF_D
 
-UDF_C_CLR: 
-        CLR C_DETCT
+        ; Right T-junction pattern
+        LDAA sensor_pattern
+        ANDA #%00101100     ; bit 5,3,2 -> A,C,D
+        CMPA #%00101100
+        BEQ  RTJUNC            
 
-UDF_D:
-        LDAA 3,Y
-        CMPA #STARBD_THRESHOLD
-        BLS UDF_D_CLR
-        LDAA #1
-        STAA D_DETCT
-        BRA UDF_E
+        ; T-junction pattern
+        LDAA sensor_pattern
+        ANDA #%00011100     ; bit 4,3,2 -> B,C,D
+        CMPA #%00011100
+        BEQ  TJUNC             
 
-UDF_D_CLR: 
-        CLR D_DETCT
 
-UDF_E:
-        LDAA 4,Y
-        CMPA #LLINE_THRESHOLD
-        BLS UDF_E_CLR
-        LDAA #1
-        STAA E_DETCT
-        BRA UDF_F
+        ; Left turn pattern
+        LDAA sensor_pattern
+        ANDA #%00011000     ; bit 4,3 -> B,C
+        CMPA #%00011000
+        BEQ  LTURN             
 
-UDF_E_CLR: 
-        CLR E_DETCT
 
-UDF_F:
-        LDAA 5,Y
-        CMPA #RLINE_THRESHOLD
-        BLS UDF_F_CLR
-        LDAA #1
-        STAA F_DETCT
-        BRA UDF_DONE
+        ; Right turn pattern
+        LDAA sensor_pattern
+        ANDA #%00001100     ; bit 3,2 -> C,D
+        CMPA #%00001100
+        BEQ  RTURN            
 
-UDF_F_CLR: 
-        CLR F_DETCT
 
-UDF_DONE:
+        ; Straight line pattern
+        LDAA sensor_pattern
+        ANDA #%00101000     ; bit 5,3 -> A,C
+        CMPA #%00101000
+        BEQ  STRTLINE
+
+
+        ; End of line pattern
+        LDAA sensor_pattern
+        ANDA #%00000011     ; bit 1,0 -> E,F
+        CMPA #%00000011
+        BEQ  ENDLINE           
+
         RTS
+
 
 ; ===============================================================
 ; Missing user-defined symbols added here
