@@ -127,10 +127,8 @@ rotation_count_port DS.W 0
 rotation_count_stbd DS.W 0
 ; Temporaries
 temp_a              DS.B 1
-TEMP                DS.B 1      ; delete later if not used
 
 RETURN_PATH      DC.B  0                         ; RETURN (TRUE = 1, FALSE = 0)
-NEXT_DIR         DC.B  1                         ; Next direction instruction
 
 ;FOR PATTERN DETECTION
 LINE_SENSOR     DC.B  $0                        ; E-F, (LINE ) Storage for guider sensor readings
@@ -139,7 +137,6 @@ PORT_SENSOR     DC.B  $0                        ; B, (LEFT )
 MIDD_SENSOR     DC.B  $0                        ; C, (MIDDLE)
 STARBD_SENSOR   DC.B  $0                        ; D, (RIGHT)
 SENSOR_NUM      DC.B  1                        ; Sensor number for reading loop
-
 ;=============================================================================
 ; PROGRAM ENTRY POINT / CODE SECTION  
 ;=============================================================================
@@ -693,13 +690,13 @@ SELECT_SENSOR           PSHA ; Save the sensor number for the moment
                         
                         LDAA PORTA ; Clear the sensor selection bits to zeros
                         ANDA #%11100011 ;
-                        STAA TEMP ; and save it into TEMP
+                        STAA temp_a ; and save it into TEMP
                         PULA ; Get the sensor number
                         ASLA ; Shift the selection number left, twice
                         ASLA ;
                         ANDA #%00011100 ; Clear irrelevant bit positions
                         
-                        ORAA TEMP ; OR it into the sensor bit positions
+                        ORAA temp_a ; OR it into the sensor bit positions
                         STAA PORTA ; Update the hardware
                         RTS
 ;============================================================
@@ -867,22 +864,22 @@ SET_MOTOR_DIRECTIONS    ; Input: A = port dir (0=FWD,1=REV), B = stbd dir
             PSHA
             LDAA PORTA
             ANDA #%11111100         ; Clear PA0, PA1
-            STAA TEMP
+            STAA temp_a
             
             PULA
             TSTA
             BEQ  SMD_PORT_FWD
-            LDAA TEMP
+            LDAA temp_a
             ORAA #%00000001
-            STAA TEMP
+            STAA temp_a
 SMD_PORT_FWD
             TSTB
             BEQ  SMD_STBD_FWD
-            LDAA TEMP
+            LDAA temp_a
             ORAA #%00000010
-            STAA TEMP
+            STAA temp_a
 SMD_STBD_FWD
-            LDAA TEMP
+            LDAA temp_a
             STAA PORTA
             RTS
 
@@ -905,7 +902,7 @@ CHECK_STBD_MOTOR
             BLO  APPLY_SPEEDS
             LDAA temp_a
             ORAA #%00100000                ; PT5
-            STAA temp
+            STAA temp_a
 
 APPLY_SPEEDS
             LDAA temp_a
