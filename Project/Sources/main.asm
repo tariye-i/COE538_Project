@@ -36,7 +36,7 @@ STARBD_THRESH    EQU $99              ; SENSOR D
 ELINE_THRESH        EQU $60    ; (3C + 80)/2 = 5E ~ 60      
 RLINE_THRESH        EQU $A0    ; (C4 + 80)/2 = A2 ~ A0
 LINE_CENTER         EQU $80     ; Centered ($3C + $C4) / 2 = 80
-LINE_DEADBAND       EQU $08,          ; ±8 counts acceptable
+LINE_DEADBAND       EQU $08         ; ±8 counts acceptable
 ;-----------------------------------------------------------------------------
 ; WHEEL COUNTS
 ;-----------------------------------------------------------------------------
@@ -144,7 +144,6 @@ SENSOR_NUM      DC.B  1                        ; Sensor number for reading loop
 Entry:
 _Startup:
                 LDS  #$4000                 ; Initialize stack pointer
-
             ; Initialize Hardware
                 JSR  INIT_PORTS
                 JSR   initAD                    ; Initialize ATD converter                  I                                                ;                                           A
@@ -179,7 +178,7 @@ _Startup:
                 LDX   #msg4                     ; Display msg4                              |
                 JSR   putsLCD                   ; ""                            
 
-        MainLoop
+        MainLoop:
                 JSR   READ_ALL_SENSORS      ; 1. Read all raw sensors
                 JSR   CHECK_BUMPERS          ; safety flags
                 
@@ -252,7 +251,7 @@ NOT_DONE        CMPA #BCKTRK
                 JSR  BCKTRK_ST
                 RTS
 
-NOT_BCKTRK      STOP_MOTORS
+NOT_BCKTRK      JSR STOP_MOTORS
                 RTS
 
 DISPATCHER_END  RTS 
@@ -311,7 +310,7 @@ JUNCT_ST
             JSR  PUSH_INTERSECTION       ; Not solved yet - explore new path
            
             LDAA detected_pattern        ; Determine available turns based on pattern
-\
+
             CMPA #PATTERN_LEFT
             BEQ  JUNCTION_TRY_LEFT
             
@@ -436,10 +435,11 @@ COL_ST
             BSET  PORTA,%00000010
 
             ; Clear counters
-            CLR  rotation_count_port
-            CLR  rotation_count_port+1
-            CLR  rotation_count_stbd
-            CLR  rotation_count_stbd+1
+            LDD #$0000
+            STD rotation_count_port
+
+            LDD #$0000
+            STD rotation_count_stbd
             
             ; Start reversing
             LDAA #MOTOR_MED
@@ -520,10 +520,12 @@ FLW_INIT                        ; Initialize FOLLOW state, Ensure motors are on,
             JSR  SET_MOTOR_SPEEDS
             
             ; Reset wheel counters
-            CLR  rotation_count_port
-            CLR  rotation_count_port+1
-            CLR  rotation_count_stbd
-            CLR  rotation_count_stbd+1
+            ; Clear counters
+            LDD #$0000
+            STD rotation_count_port
+
+            LDD #$0000
+            STD rotation_count_stbd
             
             RTS
 
@@ -539,12 +541,13 @@ JUNCT_INIT                      ; Initialize JUNCTION state
 
 TRN_INIT
             JSR  STOP_MOTORS
-            
-            ; Clear rotation counters
-            CLR  rotation_count_port
-            CLR  rotation_count_port+1
-            CLR  rotation_count_stbd
-            CLR  rotation_count_stbd+1
+
+            ; Clear counters
+            LDD #$0000
+            STD rotation_count_port
+
+            LDD #$0000
+            STD rotation_count_stbd
             
             ; Set motor directions based on turn type
             LDAA turn_type
@@ -589,10 +592,11 @@ COL_INIT                                ; Initialize COLLISION state
             BSET  PORTA,%00000001               ; Both REV (PA0=1, PA1=1)
             BSET  PORTA,%00000010
             ; Reset counters for reverse distance measurement
-            CLR  rotation_count_port
-            CLR  rotation_count_port+1
-            CLR  rotation_count_stbd
-            CLR  rotation_count_stbd+1
+            LDD #$0000
+            STD rotation_count_port
+
+            LDD #$0000
+            STD rotation_count_stbd
             
             ; Start reversing at medium speed
             LDAA #MOTOR_MED
@@ -626,7 +630,7 @@ BCKTRK_INIT                                ;Initialize BACKTRACK state
             
             ; Reset intersection counter for return journey
             ; (Start from highest intersection and count down)
-            LDAA intersection_count
+            LDAA intersection_solved
             STAA current_intersection
         
             ;Wait for rear bumper press to start return
