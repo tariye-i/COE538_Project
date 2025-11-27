@@ -11,7 +11,6 @@
 ; - Bumper collision detection
 ; - State machine navigation
 ;*****************************************************************************
-;Version test
            
 ; export symbols
             XDEF Entry, _Startup            ; export 'Entry' symbol
@@ -66,6 +65,7 @@ PORT_THRESH      EQU $99              ; SENSOR B
 MIDD_THRESH      EQU $99              ; SENSOR C
 STARBD_THRESH    EQU $99              ; SENSOR D
 EF_THRESH        EQU $B4              ; SENSOR E & F
+RLINE_THRESH     EQU EF_THRESH
 
 ;line following tracking/ tuning
 LINE_CENTER         EQU $80
@@ -103,6 +103,7 @@ TURN_LEFT           EQU 2
 TURN_REVERSE        EQU 3
 NO_TURN             EQU $FF    ;Means remain in same direction   Delete if not relevant Do not add to turn implementation
 
+
 ; PATH ORDER
 FIRST_PATH          EQU  0     ;at intersections and junctions
 SECOND_PATH         EQU  1     ;at intersections and junctions
@@ -136,9 +137,12 @@ maze_solution       RMB MAX_INTERSECTIONS
 tried_direction     RMB MAX_INTERSECTIONS
 intersection_solved RMB MAX_INTERSECTIONS
 path_stack          RMB MAX_INTERSECTIONS
+intersection_attempts RMB MAX_INTERSECTIONS
+next_path        DS.B 1       ; Stores the next path to attempt at an intersection
 
 
 ; Sensor Data
+junction_type       DS.B 1
 sensor_values       RMB 6            
 sensor_pattern      DS.B 1           ; Binary pattern: bits ABCDEF (543210)
 line_value          DS.B 1
@@ -169,16 +173,6 @@ temp_a              DS.B 1
 temp_b              DS.B 1
 TEMP                DS.B 1            
 
-;PATH DETECTION
-
-STRTLINE          DC.B  0                         ; Straight line pattern
-CRSJUNC           DC.B  0                         ; Cross junction pattern
-LTURN             DC.B  0                         ; Left turn pattern
-RTURN             DC.B  0                         ; Right turn pattern
-TJUNC             DC.B  0                         ; T-junction pattern
-LTJUNC            DC.B  0                         ; Left T-junction pattern
-RTJUNC            DC.B  0                         ; Right T-junction pattern
-ENDLINE           DC.B  0                         ; End of line pattern
 
 RETURN_PATH      DC.B  0                         ; RETURN (TRUE = 1, FALSE = 0)
 NEXT_DIR         DC.B  1                         ; Next direction instruction
@@ -251,8 +245,6 @@ MainLoop:
     ; 2. Update all detection & decision flags
     ;==============================================================
     JSR   CHECK_BUMPERS          ; safety flags
-    JSR   DETECT_JUNCTION         ; junction_flag, approaching_flag
-    JSR   DECIDE_TURN_DIRECTION          ; next_turn_dir flag
 
     ;==============================================================
     ; 3. STATE MACHINE (decision + motor control)
@@ -283,6 +275,16 @@ tab         dc.b "START_STAT",0
             dc.b "REV_STAT",0
             dc.b "DONE_STAT",0
             dc.b "BCKTRK_STAT",0
+        
+STATE_TABLE:
+            FDB START_STAT_INIT   ; 0
+            FDB FLLW_STAT_INIT    ; 1
+            FDB JUNCT_STAT_INIT   ; 2
+            FDB TURN_STAT_INIT    ; 3
+            FDB COL_STAT_INIT     ; 4
+            FDB REV_STAT_INIT     ; 5
+            FDB DONE_STAT_INIT    ; 6
+            FDB BCKTRK_STAT_INIT  ; 7
 
 ; Turn Result Table: [current_dir * 3 + turn_type] ? new_direction
 turn_result_table:
@@ -296,7 +298,7 @@ required_turn_table:
             DC.B NO_TURN, TURN_RIGHT, TURN_REVERSE, TURN_LEFT
             DC.B TURN_LEFT, NO_TURN, TURN_RIGHT, TURN_REVERSE
             DC.B TURN_REVERSE, TURN_LEFT, NO_TURN, TURN_RIGHT
-            DC.B TURN_RIGHT, TURN_REVERSE, TURN_LEFT, NO_TURN       
+            DC.B TURN_RIGHT, TURN_REVERSE, TURN_LEFT, NO_TURN  
                                      
 ;=============================================================================
 ; INITIALIZATION ROUTINES
@@ -359,6 +361,15 @@ INIT_SOLVED_LOOP:
             DECA
             BNE  INIT_SOLVED_LOOP
             
+            ; init attempted counters
+            LDX #intersection_attempts
+            LDAA #MAX_INTERSECTIONS
+
+INIT_ATTEMPTS:
+            CLR  1,X+
+            DECA
+            BNE INIT_ATTEMPTS
+
             RTS
 
 ;********************************************************************************************
@@ -419,22 +430,16 @@ PORTREV         BSET  PORTA,%00000001
 ;*******************************************************************
 DISPATCHER:
             LDAA robot_state
+            CMPA #BCKTRK_STAT + 1   ; Bounds check
+            BHS DISPATCHER_DEFAULT  ; If out of bounds, jump to default
             
-            CMPA #START_STAT
-            BEQ  START_STAT_INIT
-            
-            CMPA #FLLW_STAT
-            BEQ  FLLW_STAT_INIT
-            
-            CMPA #JUNCT_STAT
-            BEQ  JUNCT_STAT_INIT
-            
-            CMPA #COL_STAT
-            BEQ  COL_STAT_INIT
-            
-            CMPA #DONE_STAT
-            BEQ  DONE_STAT_INIT
-            
+            ; Compute address in jump table
+            LSLA                    ; A = A * 2 (each entry is 2 bytes)
+            LDX #STATE_TABLE
+            ABX          ; X points to the correct entry instead of checking each one
+            JMP 0,X      ; Jump to state initializer
+
+DISPATCHER_DEFAULT:            
             ; Default: unknown state - stop motors for safety
             JSR  STOP_MOTORS
             RTS
@@ -462,40 +467,57 @@ START_PRESSED:
 ; STATE: FOLLOWING - Line tracking and intersection detection
 ;-----------------------------------------------------------------------------
 FLLW_STAT_INIT:
+
+            ;Only check junction if not already at a junction
+            LDAA junction_type
+            CMPA #0
+            BEQ CHECK_JUNCTION
+            BRA LINE_FOLLOW  ;if at a junction, follow
+
+CHECK_JUNCTION:
             ; Check for junction
-            JSR  DETECT_JUNCTION
-            TST  temp_a                     ; Result flag in temp_a
+            JSR  THRESHOLD_PATTERN
+            TST  junction_type           ; Result flag in junction_type
             BNE  FOUND_JUNCTION
             
-            ; No junction - do line following
+LINE_FOLLOW:
+            ; No junction detected or at a current junction - do line following
             JSR  LINE_FOLLOW_CONTROL
-            RTS
+            RTS 
 
 FOUND_JUNCTION:
+            ; Move into junction handling state
             LDAA #JUNCT_STAT
             STAA robot_state
+            ; Reset next_path counter for this intersection
+            CLR next_path
             RTS
 
 ;-----------------------------------------------------------------------------
-; STATE: AT_JUNCTION - Decision point
+; STATE: AT_JUNCTION - Intersection type detection and movement implementation
 ;-----------------------------------------------------------------------------
 JUNCT_STAT_INIT:
-            ; Decide which way to turn based on mode
-            JSR  DECIDE_TURN_DIRECTION
-            
-            ; DECIDE_TURN_DIRECTION should:
-            ; 1. Check if intersection is solved
-            ; 2. If exploring: choose direction, push to stack
-            ; 3. If retracing: read from solution array
-            ; 4. Execute turn
-            ; 5. Transition back to FLLW_STAT
-            
+            ; Reset attempt counter for this intersection if it's new
+            LDAA current_intersection
+            LDX #intersection_attempts
+            STAB 0,X       ; ensure safe
+            JSR HANDLE_JUNCTION
             RTS
 
 ;-----------------------------------------------------------------------------
 ; STATE: COLLISION - Hit dead end
 ;-----------------------------------------------------------------------------
 COL_STAT_INIT:
+            ; Reverse a bit before turning [JESSICA TO UPDATE]
+            ; JSR REV_SMALL
+            
+            ; increment attempt counter for this intersection so next try uses next preference
+            LDAA current_intersection
+            LDX #intersection_attempts
+            LDAB A,X                 ; load current attempt count
+            INCB                     ; increment (wrap-around safe if >3)
+            STAB A,X                 ; store back
+            
             ; Execute 180-degree turn
             JSR  TURN_180
             
@@ -575,7 +597,7 @@ UPDT_READING:
 
 READ_ALL_SENSORS        CLR SENSOR_NUM ; Select sensor number 0
                         LDX #LINE_SENSOR ; Point at the start of the sensor array
-        RS_MAIN_LOOP:
+RS_MAIN_LOOP:
                         LDAA SENSOR_NUM ; Select the correct sensor input
                         JSR SELECT_SENSOR ; on the hardware
                         LDY #400 ; 20 ms delay to allow the
@@ -593,7 +615,7 @@ READ_ALL_SENSORS        CLR SENSOR_NUM ; Select sensor number 0
                         INX ; and the pointer into the sensor array
                         BRA RS_MAIN_LOOP ; and do it again
 
-           RS_EXIT:     RTS
+RS_EXIT:     RTS
 
 SELECT_SENSOR           PSHA ; Save the sensor number for the moment
                         
@@ -662,7 +684,7 @@ TP_D:
         ORAA #%00000100        ; bit 2 $04
         STAA sensor_pattern
 
-TP_EF:
+TP_E:
         ;----- E (bit1) -----
         LDAA 4,Y
         CMPA #EF_THRESH
@@ -681,70 +703,20 @@ TP_F:
         STAA sensor_pattern
 
 TP_DONE:
+            ; Stored to be used to update detection flags
+             LDAA 0,Y
+            STAA BOW_SENSOR
+            LDAA 4,Y
+            STAA LINE_SENSOR
+            LDAA 1,Y
+            STAA PORT_SENSOR
+            LDAA 2,Y
+            STAA MIDD_SENSOR
+            LDAA 3,Y
+            STAA STARBD_SENSOR
+            
             RTS
-
-;============================================================
-; THRESHOLD_PATTERN
-; Stores patterns to Names for detection
-;============================================================
-THRESHOLD_PATTERN:
-
-        ; Cross Junction pattern
-        LDAA sensor_pattern
-        ANDA #%00111100     ; bit 5,4,3,2 -> A,B,C,D
-        CMPA #%00111100
-        BEQ  CRSJUNC           
-
-
-        ; Left T-junction pattern
-        LDAA sensor_pattern
-        ANDA #%00111000     ; bit 5,4,3 -> A,B,C
-        CMPA #%00111000
-        BEQ  LTJUNC            
-
-
-        ; Right T-junction pattern
-        LDAA sensor_pattern
-        ANDA #%00101100     ; bit 5,3,2 -> A,C,D
-        CMPA #%00101100
-        BEQ  RTJUNC            
-
-        ; T-junction pattern
-        LDAA sensor_pattern
-        ANDA #%00011100     ; bit 4,3,2 -> B,C,D
-        CMPA #%00011100
-        BEQ  TJUNC             
-
-
-        ; Left turn pattern
-        LDAA sensor_pattern
-        ANDA #%00011000     ; bit 4,3 -> B,C
-        CMPA #%00011000
-        BEQ  LTURN             
-
-
-        ; Right turn pattern
-        LDAA sensor_pattern
-        ANDA #%00001100     ; bit 3,2 -> C,D
-        CMPA #%00001100
-        BEQ  RTURN            
-
-
-        ; Straight line pattern
-        LDAA sensor_pattern
-        ANDA #%00101000     ; bit 5,3 -> A,C
-        CMPA #%00101000
-        BEQ  STRTLINE
-
-
-        ; End of line pattern
-        LDAA sensor_pattern
-        ANDA #%00000011     ; bit 1,0 -> E,F
-        CMPA #%00000011
-        BEQ  ENDLINE           
-
-        RTS
-
+ 
 ;=============================================================================
 ; BUMPER DETECTION - DIGITAL INPUT METHOD
 ; Checks PORTAD0 bits as configured digital inputs:
@@ -782,32 +754,6 @@ STERN_HIT:
             ; Switch to retracing mode
             LDAA #MODE_RETRACING
             STAA robot_mode
-            RTS
-
-;=============================================================================
-; JUNCTION DETECTION
-;=============================================================================
-DETECT_JUNCTION:
-            ; Check if outrigger sensors (B or D) detect line
-            ; While center sensors (A,C) also detect line
-            
-            LDAA sensor_pattern
-            ANDA #%00000110             ; Check A,C
-            CMPA #%00000110             ; Both must be dark
-            BNE  DJ_NOT_JUNCTION
-            
-            ; Check if B or D also dark
-            LDAA sensor_pattern
-            ANDA #%00001001             ; Check B,D
-            BEQ  DJ_NOT_JUNCTION
-            
-            ; Junction detected!
-            LDAA #1
-            STAA temp_a
-            RTS
-            
-DJ_NOT_JUNCTION:
-            CLR  temp_a
             RTS
 
 ;=============================================================================
@@ -869,84 +815,214 @@ LFC_CENTERED:
             LDAB #MOTOR_FAST
             JSR  SET_MOTOR_SPEEDS
             RTS
-
 ;=============================================================================
-; TURN DECISION LOGIC
+; THRESHOLD_PATTERN - wrapper that converts sensors and sets junction_type
 ;=============================================================================
-DECIDE_TURN_DIRECTION:
-            ; Check if this intersection is solved
-            LDAA current_intersection
-            LDX  #intersection_solved
-            LDAB A,X                    ; Indexed load
-            CMPB #1
-            BEQ  DTD_USE_SOLUTION
-            
-            
-            ; Not solved - explore
-            ; Simple strategy: try left first
-            LDAA #TURN_LEFT
-            STAA temp_a
-            
-            ; Record that we tried left
-            LDAA current_intersection
-            LDX  #tried_direction
-            LDAB #TURN_LEFT
-            STAB A,X
-            
-            ; Push intersection on stack
-            JSR  PUSH_INTERSECTION
-            
-            ; Execute turn
-            JSR  PIVOT_LEFT_90
-            
-            ; Increment intersection counter
-            INC  current_intersection
-            
-            ; Return to following
-            LDAA #FLLW_STAT
-            STAA robot_state
-            RTS
+THRESHOLD_PATTERN:
+        
+        JSR SENSOR_CONVERT
+        JSR UPDATE_DECT_FLAGS
+        RTS
+        
+ UPDATE_DECT_FLAGS:
+        
+        LDAA sensor_pattern
+        STAA temp_a        ; keep pattern in temp_a
+        
+        ; Using copies
+        LDAA LINE_SENSOR
+        ADDA STARBD_SENSOR
+        LSRA
+        STAA line_value
+        
+        ; Determine junction_type:
+        LDAA temp_a
+        ANDA #%00100000         ; A
+        BNE IS_JUNCTION
+        LDAA temp_a
+        ANDA #%00001000         ; C
+        BEQ CHECK_EF_COMBO
+        
+        ; C set: check E or F
+        LDAA temp_a
+        ANDA #%00000011
+        BNE IS_JUNCTION
+        BRA NOT_JUNCTION
+        
+CHECK_EF_COMBO:
+        
+        LDAA temp_a
+        ANDA #%00000011
+        CMPA #%00000011
+        BEQ IS_JUNCTION         ; both E and F
+        
+        LDAA temp_a
+        ANDA #%00011110
+        CMPA #2
+        BLS NOT_JUNCTION        
+        
+        ; If multiple middle sensors triggered, treat as junction
+        ; We'll approximate by checking if any two bits of mask are set:
+        PSHA
+        LDAA temp_a
+        ANDB #%00011110
+        DECA
+        
+        ; If above mask non-zero and not single bit then treat as junction
+        LDAA temp_a
+        ANDA #%00001000 ; C
+        BNE CHECK_D
+        LDAA temp_a
+        ANDA #%00000100 ; D
+        BNE CHECK_E
+        LDAA temp_a
+        ANDA #%00000010 ; E
+        BNE CHECK_F
+        BRA NOT_JUNCTION
+        
+CHECK_D:
+        LDAA temp_a
+        ANDA #%00000100
+        BNE IS_JUNCTION
+        BRA IS_JUNCTION
+CHECK_E:
+        LDAA temp_a
+        ANDA #%00000010
+        BNE IS_JUNCTION
+        BRA NOT_JUNCTION
+CHECK_F:
+        LDAA temp_a
+        ANDA #%00000001
+        BNE IS_JUNCTION
+        BRA NOT_JUNCTION
 
-DTD_USE_SOLUTION:
-            ; Read stored solution
-            LDAA current_intersection
-            LDX  #maze_solution
-            LDAB A,X                    ; Get desired direction
-            
-            ; Calculate required turn
-            LDAA current_direction      ; Current
-            ; LDAB already has desired
-            JSR  GET_REQUIRED_TURN      ; Returns turn type in A
-            
-            CMPA #TURN_LEFT
-            BEQ  DTD_DO_LEFT
-            CMPA #TURN_RIGHT
-            BEQ  DTD_DO_RIGHT
-            CMPA #TURN_REVERSE
-            BEQ  DTD_DO_180
-            
-            ; Otherwise straight - continue following
-            LDAA #FLLW_STAT
-            STAA robot_state
-            RTS
+IS_JUNCTION:
+        LDAA #1
+        STAA junction_type
+        BRA UDF_DONE
 
-DTD_DO_LEFT:
-            JSR  PIVOT_LEFT_90
-            LDAA #FLLW_STAT
-            STAA robot_state
-            RTS
+NOT_JUNCTION:
+        LDAA #0
+        STAA junction_type
 
-DTD_DO_RIGHT:
-            JSR  PIVOT_RIGHT_90
-            LDAA #FLLW_STAT
-            STAA robot_state
-            RTS
+UDF_DONE:
+        RTS
 
-DTD_DO_180:
-            JSR  TURN_180
-            LDAA #FLLW_STAT
-            STAA robot_state
-            RTS
+; MOVE_FORWARD - move forward a short distance (FRWD_DIS) using wheel counts
+MOVE_FORWARD:
+        ; Set forward directions (both motors forward)
+        BCLR PORTA, #$01   ; Port forward bit (PA0 = 0 for forward)
+        BCLR PORTA, #$02   ; Starboard forward bit (PA1 = 0)
+        ; set speeds to moderate
+        LDAA #MOTOR_MED
+        LDAB #MOTOR_MED
+        JSR SET_MOTOR_SPEEDS
+
+        CLR rotation_count_port
+        CLR rotation_count_stbd
+
+;NOT REALLY SURE HOW TO COMPLETE THIS @JESSICA
+
+; UPDATE_DIRECTION_TABLE - update current_direction according to motion
+; (for straight moves direction remains same; pivot/turn routines update direction themselves)
+UPDATE_DIRECTION_TABLE:
+        ; no-op here (kept for future expansion)
+        RTS
+;=============================================================================
+; JUNCTION HANDLER LOGIC
+;=============================================================================
+HANDLE_JUNCTION:
+    ; Determine which turn to attempt at this junction
+    LDX #required_turn_table
+    LDAA current_intersection
+    ASLA
+    ASLA           ; multiply by 4
+    LDAB #0                     ; clear high byte of offset
+    ABX                         ; X = required_turn_table + A
+    JMP 0,X                     ; jump to handler
+
+    LDAB next_path
+    ABX            ; X = base + next_path offset
+    LDAA 0,X       ; load turn type
+
+    CMPA #TURN_RIGHT
+    BEQ DO_RIGHT
+    CMPA #TURN_STRAIGHT
+    BEQ DO_STRAIGHT
+    CMPA #TURN_LEFT
+    BEQ DO_LEFT
+    CMPA #TURN_REVERSE
+    BEQ DO_REVERSE
+    BRA END_HANDLE      ; No valid turn found
+
+; Perform the turn
+DO_LEFT:
+    JSR PIVOT_LEFT_90
+    JSR UPDATE_DIRECTION_TABLE
+    BRA CHECK_BUMP
+
+DO_STRAIGHT:
+    ; Straight = move forward a little
+    JSR MOVE_FORWARD
+    JSR UPDATE_DIRECTION_TABLE
+    BRA CHECK_BUMP
+
+DO_RIGHT:
+    JSR PIVOT_RIGHT_90
+    JSR UPDATE_DIRECTION_TABLE
+    BRA CHECK_BUMP
+
+DO_REVERSE:
+    JSR TURN_180
+    JSR UPDATE_DIRECTION_TABLE
+    BRA CHECK_BUMP
+
+; Check bumpers
+CHECK_BUMP:
+    JSR CHECK_BUMPERS
+    LDAA robot_state
+    CMPA #COL_STAT
+    BEQ NO_BUMP_DETECTED
+
+    ; Collision detected ? set collision state
+    LDAA #COL_STAT
+    STAA robot_state
+    RTS
+
+NO_BUMP_DETECTED:
+    ; Record intersection if not already solved
+    LDX #intersection_solved
+    LDAB current_intersection
+    LDAA 0,X
+    CMPA #1
+    BEQ SKIP_RECORD
+
+    ; Store direction in path stack
+    LDX #path_stack
+    LDAB path_stack_ptr
+    LDAA current_direction
+    STAA B,X       ; store at stack
+
+    INC path_stack_ptr
+
+
+    ; Increment intersection counter
+    INC current_intersection
+
+    ; Mark as solved    
+    LDX #intersection_solved
+    LDAB current_intersection
+    LDAA #1
+    STAA B,X
+
+
+SKIP_RECORD:
+    ; Increment next_path for next attempt at this junction
+    INC next_path
+    RTS
+
+END_HANDLE:
+    RTS
 
 ;=============================================================================
 ; MOTOR CONTROL
@@ -1076,8 +1152,7 @@ PUSH_INTERSECTION:
             LDX  #path_stack
             LDAB path_stack_ptr
             LDAA current_intersection
-            STAA B,X
-            
+            STAA B,X             
             INC  path_stack_ptr
 
 PUSH_OVERFLOW:
@@ -1085,10 +1160,11 @@ PUSH_OVERFLOW:
 
 POP_INTERSECTION:
             LDAA path_stack_ptr
-            BEQ  POP_EMPTY
+            BEQ  POP_EMPTY            
+            DECA
+            STAA path_stack_ptr
             
-            DEC  path_stack_ptr
-            LDX  #path_stack
+            LDX #path_stack
             LDAB path_stack_ptr
             LDAA B,X
             STAA current_intersection
@@ -1107,23 +1183,46 @@ RECORD_CORRECTION:
             ; Store correct direction
             ; (Opposite of tried_direction)
             LDX  #tried_direction
-            LDAA A,X
+            LDAB current_intersection
+            LDAA B,X
             
             ; If tried LEFT, correct is RIGHT (and vice versa)
             CMPA #TURN_LEFT
             BEQ  RC_SET_RIGHT
-            
-            LDAA #TURN_LEFT
-            BRA  RC_STORE
+            CMPB #TURN_RIGHT
+            BEQ RC_SET_LEFT
+            CMPB #TURN_STRAIGHT
+            BEQ RC_SET_STRAIGHT
+            CMPB #TURN_REVERSE
+            BEQ RC_SET_REVERSE
+            BRA RC_DONE
+
 
 RC_SET_RIGHT:                             ;RIGHT DIRECTION
             LDAA #TURN_RIGHT
+            BRA RC_STORE
+
+RC_SET_LEFT:
+            LDAA #TURN_LEFT
+            BRA RC_STORE
+
+RC_SET_STRAIGHT:
+            LDAA #TURN_STRAIGHT
+            BRA RC_STORE
+
+RC_SET_REVERSE:
+            LDAA #TURN_REVERSE
+            BRA RC_STORE
+
 
 RC_STORE:
             LDX  #maze_solution
             LDAB current_intersection
             STAA B,X
-            RTS
+            BRA RC_DONE
+
+RC_DONE:
+        RTS
 
 ;=============================================================================
 ; LOOKUP TABLE FUNCTIONS
@@ -1501,7 +1600,7 @@ UPDT_DISP
         sternON: LDAA  #$53                     ; ""
                 JSR   putcLCD                   ; ""
 
-UPDT_DISP_EXIT RTS                             ; and exit                
+UPDT_DISPL_EXIT RTS                             ; and exit                
 
 ;=============================================================================
 ; INTERRUPT VECTORS
