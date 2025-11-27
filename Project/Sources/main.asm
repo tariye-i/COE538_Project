@@ -1465,7 +1465,7 @@ UPDT_DISP
                 JSR   putcLCD                   ; ""
                 EXG   A,B                       ; ""
                 JSR   putcLCD                   ; ""
-;------------------------------------------------           
+          
                 MOVB  #$90,ATDCTL5              ; R-just., uns., sing. conv., mult., ch=0, start
                 BRCLR ATDSTAT0,$80,*            ; Wait until the conver. seq. is complete
                 LDAA  ATDDR0L                   ; Load the ch0 result - battery volt - into A
