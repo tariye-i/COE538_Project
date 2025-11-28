@@ -495,7 +495,7 @@ BCKTRK_ST
  
 BCKTRACK_FOLLOW
             JSR  LINE_FOLLOW_CONTROL
-            RTS
+            RTS 
 
 BCKTRK_DONE
             MOVB #DONE, robot_state
@@ -668,7 +668,7 @@ UPDT_READING
 ;=============================================================================
 READ_ALL_SENSORS        CLR SENSOR_NUM ; Select sensor number 0
                         LDX #LINE_SENSOR ; Point at the start of the sensor array
-        RS_MAIN_LOOP:
+RS_MAIN_LOOP:
                         LDAA SENSOR_NUM ; Select the correct sensor input
                         JSR SELECT_SENSOR ; on the hardware
                         
@@ -688,7 +688,7 @@ READ_ALL_SENSORS        CLR SENSOR_NUM ; Select sensor number 0
                         INX ; and the pointer into the sensor array
                         BRA RS_MAIN_LOOP ; and do it again
 
-           RS_EXIT:     RTS
+RS_EXIT:     RTS
 
 SELECT_SENSOR           PSHA ; Save the sensor number for the moment
                         
@@ -1025,8 +1025,7 @@ PUSH_INTERSECTION
             LDX  #path_stack
             LDAB path_stack_ptr
             LDAA current_intersection
-            STAA B,X
-            
+            STAA B,X             
             INC  path_stack_ptr
 
 PUSH_OVERFLOW
@@ -1034,10 +1033,11 @@ PUSH_OVERFLOW
 
 POP_INTERSECTION
             LDAA path_stack_ptr
-            BEQ  POP_EMPTY
+            BEQ  POP_EMPTY            
+            DECA
+            STAA path_stack_ptr
             
-            DEC  path_stack_ptr
-            LDX  #path_stack
+            LDX #path_stack
             LDAB path_stack_ptr
             LDAA B,X
             STAA current_intersection
