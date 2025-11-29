@@ -123,8 +123,8 @@ port_motor_speed    DS.B 1
 stbd_motor_speed    DS.B 1
 target_counts    DS.W 1              ; Target rotation count for turns
 ; Wheel Counters , 16 Bits to avoid overflow, 2-byte initializated to $0000
-rotation_count_port DS.W 0
-rotation_count_stbd DS.W 0
+rotation_count_port DS.W 1
+rotation_count_stbd DS.W 1
 ; Temporaries
 temp_a              DS.B 1
 
@@ -502,7 +502,7 @@ BCKTRK_DONE
             JSR  STOP_MOTORS
             RTS
             
- DONE_ST 
+DONE_ST 
             JSR  STOP_MOTORS                  ; Keep motors stopped
             RTS                  
 ;*****************************************************************************
