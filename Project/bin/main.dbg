@@ -5479,11 +5479,11 @@ PORT_THRESH      EQU $99              ; SENSOR B
 MIDD_THRESH      EQU $99              ; SENSOR C
 STARBD_THRESH    EQU $99              ; SENSOR D
 ;line following tracking/ tuning
-; ┌─────────────────────────────────────────────────────────┐
-; │  E covered (E dark, F light) = $3C → Robot FAR LEFT     │
-; │  F covered (E light, F dark) = $C4 → Robot FAR RIGHT    │
-; │  Centered (E=F resistance)   = $80 → Robot CENTERED     │
-; └─────────────────────────────────────────────────────────┘
+; +---------------------------------------------------------+
+; �  E covered (E dark, F light) = $3C ? Robot FAR LEFT     �
+; �  F covered (E light, F dark) = $C4 ? Robot FAR RIGHT    �
+; �  Centered (E=F resistance)   = $80 ? Robot CENTERED     �
+; +---------------------------------------------------------+
 ELINE_THRESH        EQU $60    ; (3C + 80)/2 = 5E ~ 60      
 RLINE_THRESH        EQU $A0    ; (C4 + 80)/2 = A2 ~ A0
 LINE_CENTER         EQU $80     ; Centered ($3C + $C4) / 2 = 80
