@@ -146,7 +146,7 @@ _Startup:
                 LDS  #$4000                 ; Initialize stack pointer
             ; Initialize Hardware
                 JSR  INIT_PORTS
-                JSR   initAD                    ; Initialize ATD converter                                                                                                         A
+                JSR   initAD                    ; Initialize ATD converter            
                 JSR   initLCD                   ; Initialize the LCD                        
                 JSR   clrLCD                    ; Clear LCD & home cursor   
                 JSR  INIT_TCNT
@@ -1367,14 +1367,14 @@ TOF_ISR     INC  TOF_COUNTER
             STAA TFLG2                ; TOF
             RTI
 ;********************************************************************************************
-;* INTERRUPT SERVICE ROUTINE 1  /  Port wheel counter                                                            *
+;* INTERRUPT SERVICE ROUTINE 1  /  Port wheel counter                                                            
 ;********************************************************************************************
 IC0_ISR         
                 MOVB  #$01,TFLG1                ; clear the C0F input capture flag
                 INC   rotation_count_port                    ; increment rotation_count_port
                 RTI
 ;********************************************************************************************
-;* INTERRUPT SERVICE ROUTINE 2   / Starboard wheel counter                                                           *
+;* INTERRUPT SERVICE ROUTINE 2   / Starboard wheel counter                                                         
 ;********************************************************************************************
 IC1_ISR         
                 MOVB  #$02,TFLG1                ; clear the C1F input capture flag
