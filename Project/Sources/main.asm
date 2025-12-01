@@ -28,11 +28,11 @@ PORT_THRESH      EQU $99              ; SENSOR B
 MIDD_THRESH      EQU $99              ; SENSOR C
 STARBD_THRESH    EQU $99              ; SENSOR D
 ;line following tracking/ tuning
-; ┌─────────────────────────────────────────────────────────┐
-; │  E covered (E dark, F light) = $3C → Robot FAR LEFT     │
-; │  F covered (E light, F dark) = $C4 → Robot FAR RIGHT    │
-; │  Centered (E=F resistance)   = $80 → Robot CENTERED     │
-; └─────────────────────────────────────────────────────────┘
+; +---------------------------------------------------------+
+; �  E covered (E dark, F light) = $3C ? Robot FAR LEFT     �
+; �  F covered (E light, F dark) = $C4 ? Robot FAR RIGHT    �
+; �  Centered (E=F resistance)   = $80 ? Robot CENTERED     �
+; +---------------------------------------------------------+
 ELINE_THRESH        EQU $60    ; (3C + 80)/2 = 5E ~ 60      
 RLINE_THRESH        EQU $A0    ; (C4 + 80)/2 = A2 ~ A0
 LINE_CENTER         EQU $80     ; Centered ($3C + $C4) / 2 = 80
@@ -146,14 +146,14 @@ _Startup:
                 LDS  #$4000                 ; Initialize stack pointer
             ; Initialize Hardware
                 JSR  INIT_PORTS
-                JSR   initAD                    ; Initialize ATD converter                  I                                                ;                                           A
-                JSR   initLCD                   ; Initialize the LCD                        L
+                JSR   initAD                    ; Initialize ATD converter                                                                                                         A
+                JSR   initLCD                   ; Initialize the LCD                        
                 JSR   clrLCD                    ; Clear LCD & home cursor   
                 JSR  INIT_TCNT
             ; Initialize Variables
                  JSR  INIT_MAZE_DATA        
             ; Safety: Motors off
-                JSR  STOP_MOTORS                                               ;                                           T
+                JSR  STOP_MOTORS                                              
             ; Set initial state
                 LDAA #START
                 STAA robot_state
@@ -162,7 +162,7 @@ _Startup:
             
                 LDX   #msg1                     ; Display msg1                              N
                 JSR   putsLCD                   ; ""                                        |
-                                              ;                                           |
+                                                ;                                           |
                 LDAA  #$8A                      ; Move LCD cursor to the end of msg1        |
                 JSR   cmd2LCD                   ; ""                                        |
                 LDX   #msg2                     ; Display msg2                              |
@@ -192,12 +192,12 @@ _Startup:
 ;*******************************************************************
 ; data section
 ;*******************************************************************
-msg1        dc.b "Battery volt ",0      ;may shorten names
+msg1        dc.b "Battery volt ",0      
 msg2        dc.b "State ",0
 msg3        dc.b "Sensor ",0
 msg4        dc.b "Bumper ",0
 
-tab         dc.b "START",0                 ;CHANGE NAME TO START
+tab         dc.b "START",0                 
             dc.b "FLW",0
             dc.b "JUNCT",0
             dc.b "TURN",0
@@ -206,7 +206,7 @@ tab         dc.b "START",0                 ;CHANGE NAME TO START
             dc.b "DONE",0
             dc.b "BCKTRK",0
 
-; Turn Result Table: [current_dir * 3 + turn_type] ? new_direction
+; Turn Result Table: [current_dir * 3 + turn_type] new_direction
 turn_result_table:
             DC.B EAST, NORTH, WEST      ; From NORTH: RIGHT, STRAIGHT, LEFT
             DC.B SOUTH, EAST, NORTH     ; From EAST
@@ -216,7 +216,7 @@ turn_result_table:
 ;********************************************************************************************
 ;* NEW STATES DISPATCHER / STATE MACHINE                                                                        
 ;*******************************************************************
-DISPATCHER      CMPA #START        ; CHANGE NAME TO START
+DISPATCHER      CMPA #START       
                 BNE  NOT_START
                 JSR  START_ST
                 RTS
@@ -273,7 +273,7 @@ START_FWD_BUMP
             RTS
 
 ; STATE: FOLLOW - Track line and detect junctions
-FLW_ST                 ; Check for junction
+FLW_ST      ; Check for junction
             LDAA detected_pattern
             CMPA #PATTERN_LINE
             BEQ  FOLLOW_TRACK        ; Just a line, keep following
@@ -293,7 +293,7 @@ FOLLOW_TRACK
 ;*****************************************************************************
 JUNCT_ST
 
-                            ; Increment intersection counter
+            ; Increment intersection counter
             INC  current_intersection
             
             ; Check mode
@@ -339,7 +339,7 @@ JUNCTION_TRY_LEFT
             RTS
 
 JUNCTION_TRY_RIGHT
-   ; Record that we're trying right first
+            ; Record that we're trying right first
             LDAA current_intersection
             LDAB #TURN_RIGHT
             JSR  RECORD_TRIED_DIRECTION
@@ -509,11 +509,11 @@ DONE_ST
 ;* STATE INITIALIZATION ROUTINES
 ;*****************************************************************************
 FLW_INIT                        ; Initialize FOLLOW state, Ensure motors are on, going forward
-            BCLR  PORTA,%00000001
-            BCLR  PORTA,%00000010
-; turn on both motors
-            BSET  PTT,%00010000
-            BSET  PTT,%00100000
+            BCLR  PORTA,%00000001   ; direction (1=ON. 0=OFF) ;port
+            BCLR  PORTA,%00000010   ; star
+            ; turn on both motors
+            BSET  PTT,%00010000     ; speed (1=ON. 0=OFF) ;port
+            BSET  PTT,%00100000     ; star
             ; Start motors at medium speed
             LDAA #MOTOR_MED
             LDAB #MOTOR_MED
@@ -650,7 +650,7 @@ WAIT_FOR_REAR_BUMP
         ; Just return here; BCKTRK will be called again next cycle
         RTS
 ;=============================================================================
-; SENSOR PROCESSING - Unified and corrected!
+; SENSOR PROCESSING
 ;=============================================================================
 UPDT_READING
             JSR  LED_ON
@@ -658,7 +658,7 @@ UPDT_READING
             JSR  LED_OFF
             
             JSR  CONVERT_PATTERN     ; Convert ABCD to binary
-            JSR  CHECK_EF_ZONES      ; Check E-F zones (CORRECTED!)
+            JSR  CHECK_EF_ZONES      ; Check E-F zones
             JSR  DETECT_PATTERN      ; Classify pattern type
             
             RTS
@@ -748,7 +748,7 @@ CHECK_D
 CONVERT_DONE
             RTS
 ;-----------------------------------------------------------------------------
-; CORRECTED E-F Zone Detection
+; E-F Zone Detection
 ; E-F is ONE sensor with ONE value - check which ZONE it's in
 ;-----------------------------------------------------------------------------
 CHECK_EF_ZONES
@@ -1045,6 +1045,7 @@ POP_INTERSECTION
 
 POP_EMPTY
             RTS
+;-----------------------------------------------------------------------------
 ; Records the first direction attempted at an intersection. Called when exploring a new junction
 ; Input: A = intersection number, B = turn direction tried
 ;-----------------------------------------------------------------------------
@@ -1052,24 +1053,11 @@ RECORD_TRIED_DIRECTION
             LDX  #tried_direction
             STAB A,X                 ; Store which direction we tried first
             RTS
-;-----------------------------------------------------------------------------
-; Records the correct direction after finding it works. Called when we successfully navigate through without collision
-; Input: A = intersection number, B = correct direction
-;-----------------------------------------------------------------------------
-RECORD_CORRECT_SOLUTION
-            PSHA
-            LDX  #intersection_solved              ; Mark intersection as solved
-            LDAB #1
-            STAB A,X
-            PULA
-            
-            ; Store correct direction in solution
-            LDX  #maze_solution
-            STAB A,X
-            RTS
+
 ;-----------------------------------------------------------------------------
 ; RECORD_CORRECTION
-; Called when we hit a dead end - records the OPPOSITE direction as correct. Input: None (uses current_intersection)
+; Called when we hit a dead end - records the OPPOSITE direction as correct. 
+; Input: None (uses current_intersection)
 ; Logic: If we tried LEFT and hit dead end, RIGHT must be correct
 ;-----------------------------------------------------------------------------
 RECORD_CORRECTION
@@ -1108,7 +1096,8 @@ RC_STORE
 ;-----------------------------------------------------------------------------
 ; CHECK_IF_SOLVED
 ; Checks if current intersection already has a known solution
-; Input: A = intersection number. Output: A = 0 (not solved) or 1 (solved), B = solution direction (if solved)
+; Input: A = intersection number. 
+; Output: A = 0 (not solved) or 1 (solved), B = solution direction (if solved)
 ;-----------------------------------------------------------------------------
 CHECK_IF_SOLVED
             LDX  #intersection_solved
@@ -1180,13 +1169,13 @@ INIT_SOLVED_LOOP
             BNE  INIT_SOLVED_LOOP
             
             RTS
-; utility subroutines  , FROM GOTTEN FRO PREVIOUS LABS
+; utility subroutines
 ;*******************************************************************
 ;* Initialization of the LCD: 4-bit data width, 2-line display,    *
 ;* turn on display, cursor and blinking off. Shift cursor right.   *
 ;*******************************************************************
-initLCD     BSET DDRB,%11111111               ; configure pins PS7,PS6,PS5,PS4 for output
-            BSET DDRJ,%11000000                ; configure pins PE7,PE4 for output
+initLCD     BSET DDRB,%11111111               ; configure pins PB7...PB0 for output
+            BSET DDRJ,%11000000                ; configure pins PJ7,PJ6 for reset and enable
             LDY #2000                         ; wait for LCD to be ready
             JSR del_50us                       ; -"-
             LDAA #$28                         ; set 4-bit data, 2-line display
